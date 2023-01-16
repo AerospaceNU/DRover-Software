@@ -1,10 +1,6 @@
 # import the necessary packages
-from imutils.video import VideoStream
-import argparse
-import imutils
 import time
 import cv2
-import sys
 import numpy as np
 import math
 
@@ -44,24 +40,9 @@ def eucleidianDistance(tvecs):
     d = math.sqrt(float(tvecs[0][0])**2 + float(tvecs[1][0])**2 + float(tvecs[2][0])**2)
     return d
 
-# # construct the argument parser and parse the arguments
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-t", "--type", type=str,
-#     default="DICT_ARUCO_ORIGINAL",
-#     help="type of ArUCo tag to detect")
-# args = vars(ap.parse_args())
 
 
-# define names of each possible ArUco tag OpenCV supports
-# ARUCO_DICT = {
-#     "DICT_4X4_50": cv2.aruco.DICT_4X4_50
-# }
-# verify that the supplied ArUCo tag exists and is supported by
-# OpenCV
-# if ARUCO_DICT.get(args["type"], None) is None:
-#     print("[INFO] ArUCo tag of '{}' is not supported".format(
-#         args["type"]))
-#     sys.exit(0)
+
 
 # load the ArUCo dictionary and grab the ArUCo parameters
 print("[INFO] detecting 4X4_50 tags...")
@@ -165,30 +146,6 @@ while(True):
 cap.release()
 cv2.destroyAllWindows()
 
-
-
-# image= cv2.imread("assets/markers.png", cv2.IMREAD_COLOR)
-# print(frame)
-# cv2.imshow("Frame", image)
-# arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
-# arucoParams = cv2.aruco.DetectorParameters_create()
-# (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict,
-# 	parameters=arucoParams)
-
-# print(corners)
-# print('hi')
-# print(ids)
-
-# rvecs = np.array([])
-# tvecs = np.array([])
-
-
-
-# cv2.aruco.estimatePoseSingleMarkers(corners, 0.254, cameraMatrix, distCoeffs,rvecs, tvecs)
-
-
-# for i in range(len(ids)):
-#       cv2.drawFrameAxes(frame, cameraMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1)
 
 
 
