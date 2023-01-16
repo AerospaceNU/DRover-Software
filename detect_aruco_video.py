@@ -6,6 +6,7 @@ import time
 import cv2
 import sys
 import numpy as np
+import math
 
 
 def resize(image, width=None, height=None, inter=cv2.INTER_AREA):
@@ -36,9 +37,12 @@ def resize(image, width=None, height=None, inter=cv2.INTER_AREA):
     # resize the image
     resized = cv2.resize(image, dim, interpolation=inter)
 
-    # return the resized image
+    # return the resized imagether
     return resized
 
+def eucleidianDistance(tvecs):
+    d = math.sqrt(float(tvecs[0][0])**2 + float(tvecs[1][0])**2 + float(tvecs[2][0])**2)
+    return d
 
 # # construct the argument parser and parse the arguments
 # ap = argparse.ArgumentParser()
@@ -90,25 +94,33 @@ while(True):
 
     (corners, ids, rejected) = detector.detectMarkers(frame)
 
-
-    rvecs = np.array([])
-    tvecs = np.array([])
-    objpts = np.array([])  
-
-    rvecs, tvecs, objpts  = cv2.aruco.estimatePoseSingleMarkers(corners, 0.05 , cameraMatrix, distCoeffs)
-
-    
+    # corners is Nx4, each row of corners is a marker's corners starting with top left and going counter clockwise 
+    # len(corners) is equal to the number of detected markers
 
     drawBoxes = True
 
     #verify *at least* one ArUco marker was detected
     if len(corners) > 0 and drawBoxes:
-        print("hello")
         # flatten the ArUco IDs list
         ids = ids.flatten()
         # loop over the detected ArUCo corners
         i = 0
         for (markerCorner, markerID) in zip(corners, ids):
+
+            
+
+            # 20 cm side lengths
+            MARKER_LENGTH = 0.13
+
+            objPoints = np.array([[-MARKER_LENGTH / 2, MARKER_LENGTH / 2, 0], 
+            [MARKER_LENGTH / 2, MARKER_LENGTH / 2, 0], 
+            [MARKER_LENGTH / 2, -MARKER_LENGTH / 2, 0], 
+            [-MARKER_LENGTH / 2, MARKER_LENGTH / 2, 0]])
+
+            # np.float32 because of https://stackoverflow.com/questions/54249728/opencv-typeerror-expected-cvumat-for-argument-src-what-is-this
+
+            rvecs, tvecs, _ = cv2.solvePnP(objPoints, markerCorner, np.float32(cameraMatrix), distCoeffs)
+    
 
             # extract the marker corners (which are always returned
             # in top-left, top-right, bottom-right, and bottom-left
@@ -136,11 +148,11 @@ while(True):
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (0, 255, 0), 2)
 
-            cv2.putText(frame, "[x, y, z] " + str(tvecs[i]),
+            cv2.putText(frame, "[x, y, z] " + str(tvecs[2]),
                 (topLeft[0], topLeft[1] - 45),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (0, 255, 0), 2)
-            #cv2.drawFrameAxes(frame, cameraMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1)
+            # cv2.drawFrameAxes(frame, cameraMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1)
             i += 1
 
 
