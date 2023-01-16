@@ -1,51 +1,26 @@
-# import the necessary packages
+
+
 import time
 import cv2
 import numpy as np
 import math
 
+## IMAGE RESIZING INFO CAN BE FOUND HERE : https://pyimagesearch.com/2020/12/21/detecting-aruco-markers-with-opencv-and-python/
 
-def resize(image, width=None, height=None, inter=cv2.INTER_AREA):
-    # initialize the dimensions of the image to be resized and
-    # grab the image size
-    dim = None
-    (h, w) = image.shape[:2]
+def euclideanDistance(tvecs):
+    """ Calculate the euclidean distance between the camera and a fiducial via translation vectors
 
-    # if both the width and height are None, then return the
-    # original image
-    if width is None and height is None:
-        return image
+    Args:
+        tvecs (2D NumPy Array): 3X1 NumPy Array
 
-    # check to see if the width is None
-    if width is None:
-        # calculate the ratio of the height and construct the
-        # dimensions
-        r = height / float(h)
-        dim = (int(w * r), height)
-
-    # otherwise, the height is None
-    else:
-        # calculate the ratio of the width and construct the
-        # dimensions
-        r = width / float(w)
-        dim = (width, int(h * r))
-
-    # resize the image
-    resized = cv2.resize(image, dim, interpolation=inter)
-
-    # return the resized imagether
-    return resized
-
-def eucleidianDistance(tvecs):
+    Returns:
+        float: Distance between camera and a fiducial
+    """
     d = math.sqrt(float(tvecs[0][0])**2 + float(tvecs[1][0])**2 + float(tvecs[2][0])**2)
     return d
 
-
-
-
-
-# load the ArUCo dictionary and grab the ArUCo parameters
-print("[INFO] detecting 4X4_50 tags...")
+# load dictionary and detector parameters
+print("[INFO] loading 4X4_50 tags...")
 arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 arucoParams = cv2.aruco.DetectorParameters()
 # initialize the video stream and allow the camera sensor to warm up
@@ -56,7 +31,7 @@ time.sleep(2.0)
 
 cap = cv2.VideoCapture(0)
 
-
+# random camera data I pulled from a year ago, this should be replaced with camera calibration values
 cameraMatrix = np.array([[ 9.1406711342366373e+02, 0., 6.6434795372667816e+02], [0.,
        9.1737281659181724e+02, 3.6009811226469412e+02], [0., 0., 1. ]])
 
@@ -65,43 +40,48 @@ distCoeffs = np.array([ 4.8465132033035055e-02, 6.0184689969411498e-01,
        -2.1865019660571408e+00 ])
 
 while(True):
-    ret, frame = cap.read()
-    
 
+    ret, frame = cap.read()
     #ids = np.array([])
     # detect ArUco markers in the input frame
 
+    # initialize a detector of the dictionary and parameters we've initialized
     detector = cv2.aruco.ArucoDetector(arucoDict, arucoParams)
 
+    # use that detector to check the frame
     (corners, ids, rejected) = detector.detectMarkers(frame)
-
-    # corners is Nx4, each row of corners is a marker's corners starting with top left and going counter clockwise 
-    # len(corners) is equal to the number of detected markers
 
     drawBoxes = True
 
     #verify *at least* one ArUco marker was detected
     if len(corners) > 0 and drawBoxes:
         # flatten the ArUco IDs list
+        print(f'first: {type(ids)}')
         ids = ids.flatten()
+        print(type(ids))
         # loop over the detected ArUCo corners
         i = 0
         for (markerCorner, markerID) in zip(corners, ids):
 
-            
 
-            # 20 cm side lengths
+            ## POSE ESTIMATION ########################
+
+            # marker side length in meters
             MARKER_LENGTH = 0.13
 
+            # the relative object coordinates of the marker in question
             objPoints = np.array([[-MARKER_LENGTH / 2, MARKER_LENGTH / 2, 0], 
             [MARKER_LENGTH / 2, MARKER_LENGTH / 2, 0], 
             [MARKER_LENGTH / 2, -MARKER_LENGTH / 2, 0], 
             [-MARKER_LENGTH / 2, MARKER_LENGTH / 2, 0]])
 
             # np.float32 because of https://stackoverflow.com/questions/54249728/opencv-typeerror-expected-cvumat-for-argument-src-what-is-this
-
+            
+            # documentation on this on OpenCV's website
             rvecs, tvecs, _ = cv2.solvePnP(objPoints, markerCorner, np.float32(cameraMatrix), distCoeffs)
-    
+
+
+            # DRAWING MARKERS, SOURCE : https://pyimagesearch.com/2020/12/21/detecting-aruco-markers-with-opencv-and-python/
 
             # extract the marker corners (which are always returned
             # in top-left, top-right, bottom-right, and bottom-left
@@ -133,9 +113,7 @@ while(True):
                 (topLeft[0], topLeft[1] - 45),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5, (0, 255, 0), 2)
-            # cv2.drawFrameAxes(frame, cameraMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1)
             i += 1
-
 
 
     cv2.imshow('frame', frame)
