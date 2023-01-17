@@ -1,5 +1,4 @@
 
-
 import time
 import cv2
 import numpy as np
@@ -56,14 +55,12 @@ while(True):
     #verify *at least* one ArUco marker was detected
     if len(corners) > 0 and drawBoxes:
         # flatten the ArUco IDs list
-        print(f'first: {type(ids)}')
         ids = ids.flatten()
-        print(type(ids))
         # loop over the detected ArUCo corners
         i = 0
         for (markerCorner, markerID) in zip(corners, ids):
 
-
+            print(type(cv2.aruco.DICT_4X4_50))
             ## POSE ESTIMATION ########################
 
             # marker side length in meters
