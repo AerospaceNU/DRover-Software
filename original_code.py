@@ -41,6 +41,9 @@ distCoeffs = np.array([ 4.8465132033035055e-02, 6.0184689969411498e-01,
 while(True):
 
     ret, frame = cap.read()
+
+    print(type(frame))
+
     #ids = np.array([])
     # detect ArUco markers in the input frame
 

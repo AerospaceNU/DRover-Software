@@ -18,6 +18,7 @@ class FiducialDetector():
         self.cameraMatrix = cameraMatrix
         self.distCoeffs = distCoeffs
 
+
     @staticmethod
     def euclideanDistance(tvecs):
         """ Calculate the euclidean distance between the camera and a fiducial via translation vectors
@@ -30,6 +31,7 @@ class FiducialDetector():
         """
         d = math.sqrt(float(tvecs[0][0])**2 + float(tvecs[1][0])**2 + float(tvecs[2][0])**2)
         return d
+
 
     def estimatePose(self, marker_length: float, markerCorners: np.ndarray):
         """ Produces the transformational vectors required to get the camera to one aruco marker
@@ -54,8 +56,57 @@ class FiducialDetector():
 
         return (rvecs, tvecs)
 
-    def record_and_detect(self, marker_length: float):
 
+    def draw_outline_and_data(self, frame: np.ndarray, markerCorners: np.ndarray, markerID: int, tvecs: np.ndarray):
+        """ draws the outline and location of a single fiducial over an image of the marker
+
+        Args:
+            frame (np.ndarray): The image within which the fiducial is
+            markerCorners (np.ndarray): The four locations in the frame where the marker's corners are, ordered topleft, topright, bottomright, bottomleft
+            markerID (int): The ID of the marker we are drawing on
+            tvecs (np.ndarray): The translational vector from the camera to the marker
+        """
+        # DRAWING MARKERS, SOURCE : https://pyimagesearch.com/2020/12/21/detecting-aruco-markers-with-opencv-and-python/
+
+        # extract the marker corners (which are always returned
+        # in top-left, top-right, bottom-right, and bottom-left
+        # order)
+        corners = markerCorners.reshape((4, 2))
+        (topLeft, topRight, bottomRight, bottomLeft) = corners
+        # convert each of the (x, y)-coordinate pairs to integers
+        topRight = (int(topRight[0]), int(topRight[1]))
+        bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
+        bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
+        topLeft = (int(topLeft[0]), int(topLeft[1]))
+        # draw the bounding box of the ArUCo detection
+        cv2.line(frame, topLeft, topRight, (0, 255, 0), 2)
+        cv2.line(frame, topRight, bottomRight, (0, 255, 0), 2)
+        cv2.line(frame, bottomRight, bottomLeft, (0, 255, 0), 2)
+        cv2.line(frame, bottomLeft, topLeft, (0, 255, 0), 2)
+        # compute and draw the center (x, y)-coordinates of the
+        # ArUco marker
+        cX = int((topLeft[0] + bottomRight[0]) / 2.0)
+        cY = int((topLeft[1] + bottomRight[1]) / 2.0)
+        cv2.circle(frame, (cX, cY), 4, (0, 0, 255), -1)
+        # draw the ArUco marker ID on the frame
+        cv2.putText(frame, str(markerID),
+            (topLeft[0], topLeft[1] - 15),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5, (0, 255, 0), 2)
+
+        cv2.putText(frame, "[x, y, z] " + str(tvecs[2]),
+            (topLeft[0], topLeft[1] - 45),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5, (0, 255, 0), 2)
+
+
+
+    def record_and_detect(self, marker_length: float):
+        """ Begins the camera recording and starts detection for markers
+
+        Args:
+            marker_length (float): The side length (in meters) of the markers to be detected
+        """
         # load dictionary and detector parameters
         print("[INFO] loading 4X4_50 tags...")
         arucoDict = cv2.aruco.getPredefinedDictionary(self.dictionary)
@@ -63,7 +114,6 @@ class FiducialDetector():
         # initialize the video stream and allow the camera sensor to warm up
         print("[INFO] starting video stream...")
 
-        
         time.sleep(2.0)
         # loop over the frames from the video stream
 
@@ -90,50 +140,14 @@ class FiducialDetector():
                 # loop over the detected ArUCo corners
                 i = 0
                 for (markerCorner, markerID) in zip(corners, ids):
-
                     vecs = self.estimatePose(marker_length, markerCorner)
-
                     tvecs = vecs[1]
-
-                    # DRAWING MARKERS, SOURCE : https://pyimagesearch.com/2020/12/21/detecting-aruco-markers-with-opencv-and-python/
-
-                    # extract the marker corners (which are always returned
-                    # in top-left, top-right, bottom-right, and bottom-left
-                    # order)
-                    corners = markerCorner.reshape((4, 2))
-                    (topLeft, topRight, bottomRight, bottomLeft) = corners
-                    # convert each of the (x, y)-coordinate pairs to integers
-                    topRight = (int(topRight[0]), int(topRight[1]))
-                    bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
-                    bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
-                    topLeft = (int(topLeft[0]), int(topLeft[1]))
-                    # draw the bounding box of the ArUCo detection
-                    cv2.line(frame, topLeft, topRight, (0, 255, 0), 2)
-                    cv2.line(frame, topRight, bottomRight, (0, 255, 0), 2)
-                    cv2.line(frame, bottomRight, bottomLeft, (0, 255, 0), 2)
-                    cv2.line(frame, bottomLeft, topLeft, (0, 255, 0), 2)
-                    # compute and draw the center (x, y)-coordinates of the
-                    # ArUco marker
-                    cX = int((topLeft[0] + bottomRight[0]) / 2.0)
-                    cY = int((topLeft[1] + bottomRight[1]) / 2.0)
-                    cv2.circle(frame, (cX, cY), 4, (0, 0, 255), -1)
-                    # draw the ArUco marker ID on the frame
-                    cv2.putText(frame, str(markerID),
-                        (topLeft[0], topLeft[1] - 15),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (0, 255, 0), 2)
-
-                    cv2.putText(frame, "[x, y, z] " + str(tvecs[2]),
-                        (topLeft[0], topLeft[1] - 45),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (0, 255, 0), 2)
+                    self.draw_outline_and_data(frame, markerCorner, markerID, tvecs)
                     i += 1
-
 
             cv2.imshow('frame', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-
 
         cap.release()
         cv2.destroyAllWindows()
