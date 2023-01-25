@@ -19,6 +19,7 @@ class Drone():
 
         # init variables
         self._state = mavutil.mavlink.MAV_STATE_UNINIT
+        self._start_time = time.time()
 
         # init pretty logging
         logger_format = (
@@ -154,6 +155,7 @@ class Drone():
 
     def set_guided_mode(self):
         """ Set the drone to guided mode """
+        # TODO consider MAV_CMD_NAV_GUIDED_ENABLE
         # https://ardupilot.org/dev/docs/mavlink-get-set-flightmode.html
         return self.send_command_long(
                 mavutil.mavlink.MAV_CMD_DO_SET_MODE,
@@ -226,4 +228,48 @@ class Drone():
                 break
 
         log.info("Drone landed")
+        return True
+
+    def goto_NEU(self, north, east, alt, relative=False, blocking=True):
+        """ Go to a position in NEU coordinates """
+
+        if relative:
+            frame = mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED
+        else:
+            frame = mavutil.mavlink.MAV_FRAME_LOCAL_NED
+
+        # https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
+        # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
+        self.connection.mav.set_position_target_local_ned_send(
+            int((time.time()-self._start_time)*1000),  # time_boot_ms
+            self.connection.target_system,  # target_system
+            self.connection.target_component,  # target_component
+            frame,  # frame
+            0b111111111000,  # type_mask (ignore all but positions)
+            north,  # x
+            east,  # y
+            -alt,  # z
+            0,  # vx
+            0,  # vy
+            0,  # vz
+            0,  # afx
+            0,  # afy
+            0,  # afz
+            0,  # yaw
+            0)  # yaw_rate
+
+        if not blocking:
+            return True
+
+        # wait for the drone to reach the target position
+        log.info(f"Going to NEU position: {north}, {east}, {alt}")
+        while True:
+            msg = self.connection.recv_match(type='LOCAL_POSITION_NED',
+                                             blocking=True)
+            if (abs(msg.x - north) < 0.1 and
+                    abs(msg.y - east) < 0.1 and
+                    abs(msg.z + alt) < 0.1):
+                break
+
+        log.info("Drone reached target position")
         return True
