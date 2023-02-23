@@ -4,7 +4,7 @@ import time
 from loguru import logger as log
 import numpy as np
 from fiducial_detector import FiducialDetector
-from camera.opencv_camera import OpenCVCamera
+from camera import OpenCVCamera
 
 if __name__ == "__main__":
     # random camera data I pulled from a year ago

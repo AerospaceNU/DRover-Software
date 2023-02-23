@@ -127,9 +127,9 @@ class FiducialDetector():
                     (topLeft[0], topLeft[1] - 15),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (0, 255, 0), 2)
-
+        # draw distance away from camera
         cv2.putText(frame,
-                    "[x, y, z] " + str(tvecs[2]),
+                    f"[{tvecs[0, 0]:.2f}, {tvecs[1, 0]:.2f}, {tvecs[2, 0]:.2f}]",
                     (topLeft[0], topLeft[1] - 45),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (0, 255, 0), 2)

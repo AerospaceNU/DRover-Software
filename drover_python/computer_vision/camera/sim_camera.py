@@ -5,7 +5,7 @@ import time
 import socket
 import struct
 import numpy as np
-from camera.camera import Camera
+from camera import Camera
 from loguru import logger as log
 from threading import Thread, Lock
 
@@ -77,15 +77,13 @@ class SimCamera(Camera):
 
         # acquire lock so we can safely get the latest image
         self._img_lock.acquire()
-
-        # take the latest image
         img = self._latest_image
         self._latest_image = None
+        self._img_lock.release()
 
         # convert to bgr
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-        self._img_lock.release()
         return img
 
     def __del__(self):
