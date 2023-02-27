@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import time
-from loguru import logger as log
 import numpy as np
+from loguru import logger as log
 from fiducial_detector import FiducialDetector
 from camera import OpenCVCamera
 
@@ -14,8 +14,13 @@ if __name__ == "__main__":
                               [0,       0,      1]], dtype=np.float32)
 
     dist_coeffs = np.array([.04847, 0.60185, -.00940, .00509, -2.1865], dtype=np.float32)
-    cam = OpenCVCamera(0, 1920, 1080, 30)
-    detector = FiducialDetector(camera_matrix, dist_coeffs, camera=cam)
+    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30)
 
-    # record and detect with a marker length of 20 cm
-    detector.loop_detect(0.2, False)
+    detector = FiducialDetector(camera=cam, display=True)
+
+    while True:
+        time.sleep(1)
+        markers = detector.get_seen_markers()
+
+        if markers is not None:
+            log.info(f"Markers detected: {len(markers)}\n{markers}")

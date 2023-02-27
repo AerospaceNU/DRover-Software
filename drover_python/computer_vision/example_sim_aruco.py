@@ -8,13 +8,12 @@ from camera import SimCamera
 
 if __name__ == "__main__":
     # idk what im doing but its kinda sorta closeish
-    camera_matrix = np.array([[1080, 0,  1080/2],
-                              [0,  720,  720/2],
-                              [0,  0,    1]], dtype=np.float32)
-
-    dist_coeffs = np.array([0, 0, 0, 0, 0], dtype=np.float32)
     cam = SimCamera()
-    detector = FiducialDetector(camera_matrix, dist_coeffs, camera=cam)
+    detector = FiducialDetector(camera=cam, display=True)
 
-    # record and detect with a marker length of 20 cm
-    detector.loop_detect(0.2)
+    while True:
+        time.sleep(1)
+        markers = detector.get_seen_markers()
+
+        if markers is not None:
+            log.info(f"Markers detected: {len(markers)}\n{markers}")

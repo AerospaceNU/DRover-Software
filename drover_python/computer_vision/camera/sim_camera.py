@@ -15,12 +15,14 @@ class SimCamera(Camera):
     img_header_format = "=HH"
     img_header_size = struct.calcsize(img_header_format)
 
-    def __init__(self, port=5599):
+    def __init__(self, port=5599, width=1080, height=720):
         """ Construct a new SimCamera object """
 
         self._latest_image = None
         self._focal_length = None
         self._img_lock = Lock()
+        self._width = width
+        self._height = height
 
         # connect to WebotsArduVehicle
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,6 +31,7 @@ class SimCamera(Camera):
         # wait for first image
         log.info("Waiting for first image from webots...")
         self._recv_image()
+        log.info("Connected to Webots")
 
         Thread(target=self._run, daemon=True).start()
 
@@ -85,6 +88,17 @@ class SimCamera(Camera):
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
         return img
+
+    def get_camera_matrix(self):
+        """ Get the 3x3 camera matrix """
+        # TODO make correct
+        return np.array([[self._width, 0,            self._width/2],
+                         [0,           self._height, self._height/2],
+                         [0,           0,            1]], dtype=np.float32)
+
+    def get_dist_coeffs(self):
+        """ Get 1x6 distortion array """
+        return np.array([0, 0, 0, 0, 0], dtype=np.float32)
 
     def __del__(self):
         """ Deconstructor """
