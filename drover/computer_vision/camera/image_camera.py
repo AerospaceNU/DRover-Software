@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import cv2
-from camera import Camera
+from .camera import Camera
 import time
 
 

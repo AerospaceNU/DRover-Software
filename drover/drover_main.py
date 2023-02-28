@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from drone_control.drone import Drone
+from drover import Drone
 
 drone = Drone(log_level="INFO")
 

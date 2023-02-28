@@ -245,7 +245,7 @@ class Drone():
             self.connection.target_system,  # target_system
             self.connection.target_component,  # target_component
             frame,  # frame
-            0b111111111000,  # type_mask (ignore all but positions)
+            0b110111111000,  # type_mask (ignore all but positions)
             north,  # x
             east,  # y
             -alt,  # z
@@ -273,3 +273,27 @@ class Drone():
 
         log.info("Drone reached target position")
         return True
+
+    def velocity_NEU(self, north, east, up):
+        """ Set the drone's velocity in NED coordinates """
+
+        # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
+        self.connection.mav.set_position_target_local_ned_send(
+            int((time.time()-self._start_time)*1000),  # time_boot_ms
+            self.connection.target_system,  # target_system
+            self.connection.target_component,  # target_component
+            mavutil.mavlink.MAV_FRAME_LOCAL_NED,  # frame
+            0b110111000111,  # type_mask (ignore all but velocities)
+            0,  # x
+            0,  # y
+            0,  # z
+            north,  # vx
+            east,  # vy
+            -up,  # vz
+            0,  # afx
+            0,  # afy
+            0,  # afz
+            0,  # yaw
+            0)
+
+# TODO set yaw manually

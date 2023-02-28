@@ -5,9 +5,9 @@ import time
 import numpy as np
 from threading import Thread, Lock
 from datetime import date
-from camera import Camera, OpenCVCamera
 from loguru import logger as log
 from dataclasses import dataclass
+from .camera import Camera, OpenCVCamera
 
 
 @dataclass

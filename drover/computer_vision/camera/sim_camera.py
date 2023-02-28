@@ -5,9 +5,9 @@ import time
 import socket
 import struct
 import numpy as np
-from camera import Camera
 from loguru import logger as log
 from threading import Thread, Lock
+from .camera import Camera
 
 
 class SimCamera(Camera):
