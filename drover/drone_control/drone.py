@@ -2,6 +2,7 @@
 
 import sys
 import time
+import numpy as np
 from loguru import logger as log
 from threading import Thread
 from pymavlink import mavutil
@@ -209,6 +210,9 @@ class Drone():
 
     def land(self, blocking=True):
         """ Land the drone """
+
+        self.stop(blocking=True)
+
         ack = self.send_command_long(
                     mavutil.mavlink.MAV_CMD_NAV_LAND,
                     wait_ack=True)
@@ -294,6 +298,45 @@ class Drone():
             0,  # afy
             0,  # afz
             0,  # yaw
+            0)  # yaw_rate
+
+    def stop(self, blocking=True):
+        """ Stop the drone's movement """
+        self.velocity_NEU(0, 0, 0)
+
+        if blocking:
+            while True:
+                msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
+                                                blocking=True)
+                if msg.vx < 10 and msg.vy < 10 and msg.vz < 10:  # cm/s
+                    break
+
+    def inplace_yaw(self, yaw, blocking=True):
+        """ Set the drone's yaw (-180, 180) while maintaining stationary"""
+        rad = np.deg2rad(yaw)
+        # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
+        self.connection.mav.set_position_target_local_ned_send(
+            int((time.time()-self._start_time)*1000),  # time_boot_ms
+            self.connection.target_system,  # target_system
+            self.connection.target_component,  # target_component
+            mavutil.mavlink.MAV_FRAME_LOCAL_NED,  # frame
+            0b100111000111,  # type_mask (ignore all but velocities)
+            0,  # x
+            0,  # y
+            0,  # z
+            0,  # vx
+            0,  # vy
+            0,  # vz
+            0,  # afx
+            0,  # afy
+            0,  # afz
+            rad,  # yaw
             0)
 
-# TODO set yaw manually
+        if blocking:
+            log.info(f"Yawing to {yaw} degrees")
+            while True:
+                msg = self.connection.recv_match(type='ATTITUDE',
+                                                 blocking=True)
+                if abs(np.arctan2(np.sin(msg.yaw-rad), np.cos(msg.yaw-rad))) < 0.1:
+                    break
