@@ -3,8 +3,8 @@
 import time
 import numpy as np
 from loguru import logger as log
-from fiducial_detector import FiducialDetector
-from camera import OpenCVCamera
+from .fiducial_detector import FiducialDetector
+from .camera import OpenCVCamera
 
 if __name__ == "__main__":
     # random camera data I pulled from a year ago

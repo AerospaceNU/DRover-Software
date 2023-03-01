@@ -3,23 +3,25 @@
 import time
 from drover import Drone
 
+TARGET_ALT = 2
+
 drone = Drone(log_level="INFO")
 
-drone.arm_takeoff(altitude=2)
+flying = drone.arm_takeoff(altitude=TARGET_ALT)
+if not flying:
+    exit(1)
 
-drone.inplace_yaw(135)
-drone.inplace_yaw(-135)
-drone.inplace_yaw(0)
+waypoints_NEU = [
+    [  0, -20, TARGET_ALT],
+    [ 15, -30, TARGET_ALT],
+    [ 30, -10, TARGET_ALT],
+    [ 30,  25, TARGET_ALT],
+    [-20,  20, TARGET_ALT],
+]
 
-drone.goto_NEU(5, 0, 2)
+for wp in waypoints_NEU:
+    drone.goto_NEU(*wp)
+    time.sleep(2)
 
-times_start = time.time()
-while time.time() - times_start < 5:
-    drone.velocity_NEU(-1, 0, 0)
-    time.sleep(0.1)  # 10Hz
-
-drone.stop()
-
+drone.goto_NEU(0, 0, TARGET_ALT)
 drone.land()
-
-drone.wait_disarmed()
