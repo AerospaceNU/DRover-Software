@@ -6,6 +6,7 @@ import numpy as np
 from loguru import logger as log
 from threading import Thread
 from pymavlink import mavutil
+from typing import Dict, Union
 
 # mavutil reference: https://mavlink.io/en/mavgen_python
 # MAVLink messages: https://mavlink.io/en/messages/common.html
@@ -14,22 +15,12 @@ from pymavlink import mavutil
 
 class Drone():
     def __init__(self,
-                 connection_string="udpin:0.0.0.0:14551",
-                 log_level="INFO"):
+                 connection_string="udpin:0.0.0.0:14551"):
         """Construct a new Drone object and connect to a mavlink sink/source"""
 
         # init variables
         self._state = mavutil.mavlink.MAV_STATE_UNINIT
         self._start_time = time.time()
-
-        # init pretty logging
-        logger_format = (
-            "<green>{time:HH:mm:ss.SSS}</green> | "
-            "<level>{level: <8}</level> | "
-            "<level>{message}</level>"
-        )
-        log.remove()
-        log.add(sys.stderr, level=log_level, format=logger_format)
 
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
@@ -40,9 +31,8 @@ class Drone():
                                                   autoreconnect=True)
 
         # start thread for sending heartbeats
-        # (daemon means it dies when the main thread dies)
-        self._hb_thread = Thread(target=self._run_heartbeat, daemon=True)
-        self._hb_thread.start()
+        self._main_thread = Thread(target=self._run, daemon=True)
+        self._main_thread.start()
 
         # wait for a heartbeat from the drone (aka it is connected)
         self.wait_heartbeat()
@@ -52,34 +42,9 @@ class Drone():
         # set the system status to active
         self._state = mavutil.mavlink.MAV_STATE_ACTIVE
 
-    def set_state(self, state):
-        """ Set the state of the drone """
-        self._state = state
-        self.connection.mav.heartbeat_send(
-            mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
-            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-            0,
-            0,
-            self._state)
-
-        log.info("Drone state set to " + str(state))
-
-    def _run_heartbeat(self):
-        """ Continuously send heartbeats to the drone at 2Hz """
-        # "Generally it should be sent from the same thread as
-        # all other messages. This is in order to ensure that the heartbeat
-        # is only published when the thread is healthy."
-        # Oops - Ian
-
-        while True:
-            self.connection.mav.heartbeat_send(
-                mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
-                mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-                0,
-                0,
-                self._state)
-
-            time.sleep(0.5)
+##################
+# Helper functions
+##################
 
     def drain_mavlink_buffer(self):
         """ Drain the mavlink buffer """
@@ -130,6 +95,39 @@ class Drone():
 
         return True
 
+    def set_state(self, state):
+        """ Set the state of the drone """
+        self._state = state
+        self.connection.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0,
+            0,
+            self._state)
+
+        log.info("Drone state set to " + str(state))
+
+    def _run(self):
+        """ Continuously send heartbeats to the drone at 2Hz """
+        # "Generally it should be sent from the same thread as
+        # all other messages. This is in order to ensure that the heartbeat
+        # is only published when the thread is healthy."
+        # Oops - Ian
+
+        while True:
+            self.connection.mav.heartbeat_send(
+                mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+                mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+                0,
+                0,
+                self._state)
+
+            time.sleep(0.5)
+
+##################
+# Wait functions
+##################
+
     def wait_heartbeat(self):
         """ Wait for a heartbeat from the drone """
         self.connection.recv_match(type='HEARTBEAT', blocking=True)
@@ -154,6 +152,10 @@ class Drone():
                 & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
             pass
 
+##################
+# Config functions
+##################
+
     def set_guided_mode(self):
         """ Set the drone to guided mode """
         # TODO consider MAV_CMD_NAV_GUIDED_ENABLE
@@ -162,6 +164,12 @@ class Drone():
                 mavutil.mavlink.MAV_CMD_DO_SET_MODE,
                 param1=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
                 param2=4,
+                wait_ack=True)
+
+    def rtl(self):
+        """ Set the drone to RTL mode """
+        return self.send_command_long(
+                mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
                 wait_ack=True)
 
     def arm_takeoff(self, altitude=2.5, blocking=True):
@@ -207,6 +215,26 @@ class Drone():
             log.info("Drone reached target takeoff altitude")
 
         return True
+
+    def param_set(self, parm_name, parm_value, param_type=None, retries=3):
+        """ Wrapper for parameter send function"""
+
+        for _ in range(retries):
+            self.connection.param_set_send(parm_name, parm_value, param_type)
+            msg = self.connection.recv_match(type='PARAM_VALUE',
+                                             blocking=True,
+                                             condition=f'PARAM_VALUE.param_id=="{parm_name}"',
+                                             timeout=1)
+
+            if msg is not None:
+                return True
+
+        log.error(f"Failed to set {parm_name} to {parm_value}")
+        return False
+
+##################
+# Motion functions
+##################
 
     def land(self, blocking=True):
         """ Land the drone """
@@ -307,7 +335,7 @@ class Drone():
         if blocking:
             while True:
                 msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
-                                                blocking=True)
+                                                 blocking=True)
                 if msg.vx < 10 and msg.vy < 10 and msg.vz < 10:  # cm/s
                     break
 

@@ -15,7 +15,7 @@ class SimCamera(Camera):
     img_header_format = "=HH"
     img_header_size = struct.calcsize(img_header_format)
 
-    def __init__(self, port=5599, width=1080, height=720):
+    def __init__(self, port=5599, width=640, height=480):
         """ Construct a new SimCamera object """
 
         self._latest_image = None

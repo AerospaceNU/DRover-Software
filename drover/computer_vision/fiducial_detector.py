@@ -4,7 +4,6 @@ import cv2
 import time
 import numpy as np
 from threading import Thread, Lock
-from datetime import date
 from loguru import logger as log
 from dataclasses import dataclass
 from .camera import Camera, OpenCVCamera
@@ -86,7 +85,8 @@ class FiducialDetector():
         markers = []
 
         for marker in self._aruco_dict.values():
-            if marker.seen_counter >= self._frames_needed:
+            if (marker.seen_counter >= self._frames_needed and
+               (time.time() - marker.last_seen) < self._marker_loss_timeout):
                 markers.append(marker)
 
         return markers

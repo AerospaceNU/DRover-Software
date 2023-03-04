@@ -1,27 +1,48 @@
 #!/usr/bin/env python3
 
-import time
-from drover import Drone
+import sys
+from loguru import logger as log
+from drover import Drone, MissionController, Waypoint
 
-TARGET_ALT = 2
+# init pretty logging
+logger_format = (
+    "<green>{time:HH:mm:ss.SSS}</green> | "
+    "<level>{level: <8}</level> | "
+    "<level>{message}</level>"
+)
+log.remove()
+log.add(sys.stderr, level="INFO", format=logger_format)
 
-drone = Drone(log_level="INFO")
 
-flying = drone.arm_takeoff(altitude=TARGET_ALT)
-if not flying:
-    exit(1)
+def main(drone: Drone):
+    # define waypoints
+    waypoints_NEU = [
+        Waypoint(  0, -40+1, 2),
+        Waypoint( 30, -60+2, 2),
+        Waypoint( 60, -20+3, 2),
+        Waypoint( 60+4,  50, 2),
+        Waypoint(-40,  40+5, 2)
+    ]
 
-waypoints_NEU = [
-    [  0, -20, TARGET_ALT],
-    [ 15, -30, TARGET_ALT],
-    [ 30, -10, TARGET_ALT],
-    [ 30,  25, TARGET_ALT],
-    [-20,  20, TARGET_ALT],
-]
+    # init drone
+    drone.param_set("WPNAV_SPEED", 500)
+    drone.param_set("WPNAV_ACCEL", 50)
 
-for wp in waypoints_NEU:
-    drone.goto_NEU(*wp)
-    time.sleep(2)
+    # init mission controller
+    mc = MissionController(drone, waypoints_NEU)
 
-drone.goto_NEU(0, 0, TARGET_ALT)
-drone.land()
+    # run mission
+    mc.run_mission()
+
+
+if __name__ == "__main__":
+    drone = Drone()
+    try:
+        main(drone)
+    except Exception as e:
+        log.error("Exception caught, RTLing drone...")
+        log.exception(e)
+        drone.rtl()
+    except KeyboardInterrupt:
+        log.error("Keyboard interrupt, RTLing drone...")
+        drone.rtl()
