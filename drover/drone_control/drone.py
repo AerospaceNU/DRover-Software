@@ -378,7 +378,7 @@ class Drone():
                 if msg.vx < 10 and msg.vy < 10 and msg.vz < 10:  # cm/s
                     break
 
-    def circle_NEU(self, north, east, up, radius, laps=1.0, speed=1.0, yaw=0.0, ccw=False):
+    def circle_NEU(self, north, east, up, radius, laps=1.0, speed=1.0, yaw=0.0, ccw=False, stop_on_complete=True):
         """ Perform a circle around provided point (blocking, yaw in degrees)"""
         location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
         location = np.array([location_msg.x, location_msg.y])
@@ -436,4 +436,5 @@ class Drone():
             self.velocity_NEU(*velocity_vec, 0, yaw=yaw_calculated)
         
         # done with circle, so cancel veloctiy
-        self.stop()
+        if stop_on_complete:
+            self.stop()

@@ -34,8 +34,8 @@ def main(drone: Drone):
 
     # run mission
     # mc.simple_mission()
-    mc.circle_mission(radius=10.0, speed=1.0)
-
+    # mc.circle_mission(radius=10.0, speed=1.0)
+    mc.spiral_mission()
 
 if __name__ == "__main__":
     drone = Drone()
