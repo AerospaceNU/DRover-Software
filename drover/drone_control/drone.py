@@ -21,6 +21,7 @@ class Drone():
         # init variables
         self._state = mavutil.mavlink.MAV_STATE_UNINIT
         self._start_time = time.time()
+        self.mavlink_names = [ var for var in dir(mavutil.mavlink).keys() if not var.startswith("_") ]
 
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
@@ -38,6 +39,10 @@ class Drone():
         self.wait_heartbeat()
         log.info(f"Drone connected (system {self.connection.target_system} "
                  f"component {self.connection.target_component})")
+
+        # set stream rates to be faster
+        self.set_stream_rate(10, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+        self.set_stream_rate(10, mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
 
         # set the system status to active
         self._state = mavutil.mavlink.MAV_STATE_ACTIVE
@@ -232,6 +237,15 @@ class Drone():
         log.error(f"Failed to set {parm_name} to {parm_value}")
         return False
 
+    def set_stream_rate(self, hz, stream=mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED):
+        """ Set the stream rate of data from the drone """
+        # NOTE: mavproxy and the GCS will override this
+        # run `set streamrate -1` to disable in mavproxy, and look in GCS settings
+        return self.send_command_long(mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+                                      stream,
+                                      1000000/hz,
+                                      wait_ack=True)
+
 ##################
 # Motion functions
 ##################
@@ -294,7 +308,7 @@ class Drone():
             return True
 
         # wait for the drone to reach the target position
-        log.info(f"Going to NEU position: {north}, {east}, {alt}")
+        log.info(f"Going to NEU position: {north:.2f}, {east:.2f}, {alt:.2f}")
         while True:
             msg = self.connection.recv_match(type='LOCAL_POSITION_NED',
                                              blocking=True)
@@ -339,15 +353,21 @@ class Drone():
                 if msg.vx < 10 and msg.vy < 10 and msg.vz < 10:  # cm/s
                     break
 
-    def inplace_yaw(self, yaw, blocking=True):
+    def inplace_yaw(self, yaw, relative=True, blocking=True):
         """ Set the drone's yaw (-180, 180) while maintaining stationary"""
+
+        if relative:
+            frame = mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED
+        else:
+            frame = mavutil.mavlink.MAV_FRAME_LOCAL_NED
+
         rad = np.deg2rad(yaw)
         # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
         self.connection.mav.set_position_target_local_ned_send(
             int((time.time()-self._start_time)*1000),  # time_boot_ms
             self.connection.target_system,  # target_system
             self.connection.target_component,  # target_component
-            mavutil.mavlink.MAV_FRAME_LOCAL_NED,  # frame
+            frame,  # frame
             0b100111000111,  # type_mask (ignore all but velocities)
             0,  # x
             0,  # y
@@ -368,3 +388,54 @@ class Drone():
                                                  blocking=True)
                 if abs(np.arctan2(np.sin(msg.yaw-rad), np.cos(msg.yaw-rad))) < 0.1:
                     break
+
+    def circle_NEU(self, north, east, up, radius, laps=1.0, yaw=0.0, speed=1.0, ccw=False):
+        """ Perform a circle around provided point (blocking)"""
+        location = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+        location = np.array([location.x, location.y])
+
+        # calculate closest point from the drone on the circle
+        circle_center = np.array([north, east])
+        towards_circle = circle_center-location
+        dist_to_circle = np.sqrt(np.sum(towards_circle**2))
+        start_normal_to_circle = towards_circle/dist_to_circle
+        closest_start_point = circle_center - start_normal_to_circle*radius
+
+        # fly to circle if not already on it
+        if np.sqrt(np.sum((location-closest_start_point)**2)) > 1:
+            log.info(f"Flying to closest point on circle ({location[0]:.2f}, {location[1]:.2f}) -> ({closest_start_point[0]:.2f}, {closest_start_point[1]:.2f})")
+            self.goto_NEU(*closest_start_point, up, blocking=True)
+
+        # loop until current position is near calculated end position
+        log.info(f"Starting circle around ({north:.2f}, {east:.2f}, {up:.2f}) with radius {radius:.2f}m")
+        location = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+        location = np.array([location.x, location.y])
+        angle_traveled_offset = angle_traveled = last_angle = 0
+        while angle_traveled_offset+angle_traveled < laps*2*np.pi:
+            location = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+            location = np.array([location.x, location.y])
+            # TODO calculate yaw towards center of circle, and add yaw offset
+            # calculate circle tangent vector
+            towards_circle = circle_center-location
+            dist_to_circle = np.sqrt(np.sum(towards_circle**2))
+            normal_to_circle = towards_circle/dist_to_circle
+            normal_tangent = np.array([-normal_to_circle[1], normal_to_circle[0]])
+            # calculate velocity vector along the tangent and with a component to correct drifting away from the center
+            if not ccw:
+                normal_tangent *= -1
+            correction_vec = normal_to_circle*(dist_to_circle-radius)
+            velocity_vec = normal_tangent*speed+correction_vec
+
+            # send the velocity
+            self.velocity_NEU(*velocity_vec, 0)
+
+            # calculate angle distance traveled (accounting for wrap around)
+            towards_circle, start_normal_to_circle
+            dot = towards_circle[0]*start_normal_to_circle[0] + towards_circle[1]*start_normal_to_circle[1]
+            det = towards_circle[0]*start_normal_to_circle[1] - towards_circle[1]*start_normal_to_circle[0]
+            angle_traveled = -np.arctan2(det, dot)  
+            if abs(angle_traveled-last_angle) > np.pi/2:
+                angle_traveled_offset += 2*np.pi
+            last_angle = angle_traveled
+        
+        self.stop()

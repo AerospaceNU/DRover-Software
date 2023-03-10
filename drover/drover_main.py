@@ -4,6 +4,7 @@ import sys
 from loguru import logger as log
 from drover import Drone, MissionController, Waypoint
 
+
 # init pretty logging
 logger_format = (
     "<green>{time:HH:mm:ss.SSS}</green> | "
@@ -11,7 +12,7 @@ logger_format = (
     "<level>{message}</level>"
 )
 log.remove()
-log.add(sys.stderr, level="INFO", format=logger_format)
+log.add(sys.stderr, level="DEBUG", format=logger_format)
 
 
 def main(drone: Drone):
@@ -25,14 +26,15 @@ def main(drone: Drone):
     ]
 
     # init drone
-    drone.param_set("WPNAV_SPEED", 500)
-    drone.param_set("WPNAV_ACCEL", 50)
+    # drone.param_set("WPNAV_SPEED", 500)
+    # drone.param_set("WPNAV_ACCEL", 50)
 
     # init mission controller
     mc = MissionController(drone, waypoints_NEU)
 
     # run mission
-    mc.run_mission()
+    # mc.simple_mission()
+    mc.circle_mission(radius=10.0, speed=1.0)
 
 
 if __name__ == "__main__":
