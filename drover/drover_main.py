@@ -18,11 +18,11 @@ log.add(sys.stderr, level="DEBUG", format=logger_format)
 def main(drone: Drone):
     # define waypoints
     waypoints_NEU = [
-        Waypoint(  0, -40+1, 2),
-        Waypoint( 30, -60+2, 2),
-        Waypoint( 60, -20+3, 2),
+        Waypoint(  0, -40+0, 2),
+        Waypoint( 30, -60+1, 2),
+        Waypoint( 60, -20+2, 2),
         Waypoint( 60+4,  50, 2),
-        Waypoint(-40,  40+5, 2)
+        Waypoint(-40,  40+8, 2)
     ]
 
     # init drone

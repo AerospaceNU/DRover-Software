@@ -47,7 +47,7 @@ class MissionController():
 
         for waypoint in self._waypoints:
             # TODO yaw, clockwise, laps
-            self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, radius, speed=4, laps=2)
+            self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, radius, speed=4, laps=2, yaw=90)
             time.sleep(waypoint.wait_time)
 
         self._drone.goto_NEU(0, 0, self._waypoints[0].alt)
