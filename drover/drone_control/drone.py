@@ -15,12 +15,16 @@ from typing import Dict, Union
 
 class Drone():
     def __init__(self,
-                 connection_string="udpin:0.0.0.0:14551"):
+                 connection_string="udpin:0.0.0.0:14551",
+                 max_speed=500,
+                 max_accel=50):
         """Construct a new Drone object and connect to a mavlink sink/source"""
 
         # init variables
         self._state = mavutil.mavlink.MAV_STATE_UNINIT
         self._start_time = time.time()
+        self._max_speed = max_speed
+        self._max_accel = max_accel
 
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
@@ -40,8 +44,12 @@ class Drone():
                  f"component {self.connection.target_component})")
 
         # set stream rates to be faster
-        self.set_stream_rate(10, mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
-        self.set_stream_rate(10, mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
+        self.set_stream_rate( 4, mavutil.mavlink.MAV_DATA_STREAM_ALL)
+        self.set_stream_rate(15, mavutil.mavlink.MAV_DATA_STREAM_POSITION)
+
+        # configure some params
+        self.param_set("WPNAV_SPEED", self._max_speed)
+        self.param_set("WPNAV_ACCEL", self._max_accel)
 
         # set the system status to active
         self._state = mavutil.mavlink.MAV_STATE_ACTIVE
@@ -157,6 +165,31 @@ class Drone():
             pass
 
 ##################
+# Logic functions
+##################
+
+    def is_moving(self, min_speed=5):
+        """ Checks if the drone is moving (speed is cm/s) """
+        msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
+                                            blocking=True)
+
+        if (abs(msg.vx) > min_speed or 
+            abs(msg.vy) > min_speed or 
+            abs(msg.vz) > min_speed):  # cm/s
+            return True
+        return False
+
+    def at_location_NEU(self, north, east, up=None, tolerance=1.0):
+        msg = self.connection.recv_match(type='LOCAL_POSITION_NED',
+                                            blocking=True)
+        if up is None:
+            return abs(msg.x - north) < 0.1 and abs(msg.y - east) < 0.1
+        else:
+            return (abs(msg.x - north) < 0.1 and
+                    abs(msg.y - east) < 0.1 and
+                    abs(msg.z + up) < 0.1)
+
+##################
 # Config functions
 ##################
 
@@ -228,7 +261,7 @@ class Drone():
             msg = self.connection.recv_match(type='PARAM_VALUE',
                                              blocking=True,
                                              condition=f'PARAM_VALUE.param_id=="{parm_name}"',
-                                             timeout=1)
+                                             timeout=0.5)
 
             if msg is not None:
                 return True
@@ -236,14 +269,16 @@ class Drone():
         log.error(f"Failed to set {parm_name} to {parm_value}")
         return False
 
-    def set_stream_rate(self, hz, stream=mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED):
+    def set_stream_rate(self, hz, stream=mavutil.mavlink.MAV_DATA_STREAM_ALL):
         """ Set the stream rate of data from the drone """
         # NOTE: mavproxy and the GCS will override this
         # run `set streamrate -1` to disable in mavproxy, and look in GCS settings
-        return self.send_command_long(mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
-                                      stream,
-                                      1000000/hz,
-                                      wait_ack=True)
+        self.connection.mav.request_data_stream_send(
+            self.connection.target_system,  # target_system
+            self.connection.target_component,  # target_component
+            stream, # stream
+            hz,     # rate
+            1)      # start/stop
 
 ##################
 # Motion functions
@@ -275,7 +310,9 @@ class Drone():
         log.info("Drone landed")
         return True
 
-    def goto_NEU(self, north, east, alt, relative=False, yaw=None, yaw_rate=None, blocking=True):
+    def goto_NEU(self, north, east, alt, 
+                 relative=False, yaw=None, yaw_rate=None, 
+                 blocking=True, stop_function=None):
         """ Go to a position in NEU coordinates """
 
         if relative:
@@ -294,7 +331,6 @@ class Drone():
             type_mask = ignore_vel_accel | ignore_yaw
         else:
             type_mask = ignore_vel_accel | ignore_yaw | ignore_yaw_rate
-        log.debug(f"typemask: {type_mask}")
 
         # https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
         # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
@@ -321,15 +357,14 @@ class Drone():
 
         # wait for the drone to reach the target position
         log.info(f"Going to NEU position: {north:.2f}, {east:.2f}, {alt:.2f}")
-        while True:
-            msg = self.connection.recv_match(type='LOCAL_POSITION_NED',
-                                             blocking=True)
-            if (abs(msg.x - north) < 0.1 and
-                    abs(msg.y - east) < 0.1 and
-                    abs(msg.z + alt) < 0.1):
-                break
+        while not self.at_location_NEU(north, east, alt):
+            time.sleep(0.001)
+            if stop_function is not None and stop_function():
+                log.debug("Stopped heading to position due to stop function")
+                self.stop()
+                return False
 
-        log.info("Drone reached target position")
+        log.debug("Drone reached target position")
         return True
 
     def velocity_NEU(self, north, east, up, yaw=None, yaw_rate=None):
@@ -367,19 +402,25 @@ class Drone():
             yaw if yaw is not None else 0,  # yaw
             yaw_rate if yaw_rate is not None else 0)  # yaw_rate
 
-    def stop(self, blocking=True):
-        """ Stop the drone's movement """
-        self.velocity_NEU(0, 0, 0)
+    def stop(self, blocking=True, accel=200):
+        """ Hard stop the drone's movement (accel cm/s/s) """
+        self.param_set("WPNAV_ACCEL", accel)
+        self.velocity_NEU(0, 0, 0, yaw_rate=0)
 
         if blocking:
-            while True:
-                msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
-                                                 blocking=True)
-                if msg.vx < 10 and msg.vy < 10 and msg.vz < 10:  # cm/s
-                    break
+            while self.is_moving():
+                time.sleep(0.001)
 
-    def circle_NEU(self, north, east, up, radius, laps=1.0, speed=1.0, yaw=0.0, ccw=False, stop_on_complete=True):
-        """ Perform a circle around provided point (blocking, yaw in degrees)"""
+        self.param_set("WPNAV_ACCEL", self._max_accel)
+
+    def circle_NEU(self, north, east, up, radius, yaw=0.0,
+                   laps=1.0, speed=1.0, ccw=False, spiral_out_per_lap=0.0, 
+                   stop_on_complete=True, stop_function=None):
+        """ Perform a circle around provided point (blocking, yaw in degrees) """
+
+        if speed/radius > 1/5:
+            log.warning(f"Circle speed/radius ratio over 1/5 ({speed:.1f}/{radius:.1f})")
+
         location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
         location = np.array([location_msg.x, location_msg.y])
 
@@ -391,17 +432,28 @@ class Drone():
         closest_start_point = circle_center - start_normal_to_circle*radius
 
         # fly to circle if not already on it
+        # TODO set yaw here too so we dont double back if in the circle
         if np.sqrt(np.sum((location-closest_start_point)**2)) > 1:
-            log.info(f"Flying to closest point on circle ({location[0]:.2f}, {location[1]:.2f}) -> ({closest_start_point[0]:.2f}, {closest_start_point[1]:.2f})")
-            self.goto_NEU(*closest_start_point, up, blocking=True)
+            log.debug(f"Flying to closest point on circle ({location[0]:.2f}, {location[1]:.2f}) -> ({closest_start_point[0]:.2f}, {closest_start_point[1]:.2f})")
+            ret = self.goto_NEU(*closest_start_point, up, stop_function=stop_function)
+            if not ret:
+                return False
 
-        log.info(f"Starting circle around ({north:.2f}, {east:.2f}, {up:.2f}) with radius {radius:.2f}m")
+        if laps >= 0.5:
+            log.debug(f"Starting circle around ({north:.2f}, {east:.2f}, {up:.2f}) with radius {radius:.2f}m")
         location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
         location = np.array([location_msg.x, location_msg.y])
         angle_traveled_offset = angle_traveled = last_angle = 0
-
+        
         # loop until enough laps have completed
         while angle_traveled_offset+angle_traveled < laps*2*np.pi:
+            # check stop contidtion
+            if stop_function is not None and stop_function():
+                log.debug("Stopping circle due to stop function")
+                if stop_on_complete:
+                    self.stop()
+                return False
+
             # get current location
             location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
             location = np.array([location_msg.x, location_msg.y])
@@ -412,10 +464,13 @@ class Drone():
             normal_to_circle = towards_circle/dist_to_circle
             normal_tangent = np.array([-normal_to_circle[1], normal_to_circle[0]])
 
+            # calculate the radius for spirals
+            spiral_radius = radius + (angle_traveled_offset+angle_traveled)/(2*np.pi)*spiral_out_per_lap
+
             # calculate velocity vector along the tangent and with a component to correct drifting away from the center
             if not ccw:
                 normal_tangent *= -1
-            correction_vec = normal_to_circle*(dist_to_circle-radius)
+            correction_vec = normal_to_circle*(dist_to_circle-spiral_radius)
             velocity_vec = normal_tangent*speed+correction_vec
 
             # calculate yaw wrt tangent of circle, and add yaw offset
@@ -438,3 +493,5 @@ class Drone():
         # done with circle, so cancel veloctiy
         if stop_on_complete:
             self.stop()
+
+        return True

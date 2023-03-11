@@ -15,7 +15,7 @@ class SimCamera(Camera):
     img_header_format = "=HH"
     img_header_size = struct.calcsize(img_header_format)
 
-    def __init__(self, port=5599, width=640, height=480):
+    def __init__(self, port=5599, width=640, height=480, fovx=45):
         """ Construct a new SimCamera object """
 
         self._latest_image = None
@@ -23,6 +23,7 @@ class SimCamera(Camera):
         self._img_lock = Lock()
         self._width = width
         self._height = height
+        self._fovx = np.deg2rad(fovx)
 
         # connect to WebotsArduVehicle
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,7 +32,7 @@ class SimCamera(Camera):
         # wait for first image
         log.info("Waiting for first image from webots...")
         self._recv_image()
-        log.info("Connected to Webots")
+        log.info("SimCamera connected to Webots")
 
         Thread(target=self._run, daemon=True).start()
 
@@ -91,10 +92,15 @@ class SimCamera(Camera):
 
     def get_camera_matrix(self):
         """ Get the 3x3 camera matrix """
-        # TODO make correct
-        return np.array([[self._width, 0,            self._width/2],
-                         [0,           self._height, self._height/2],
-                         [0,           0,            1]], dtype=np.float32)
+        # https://stackoverflow.com/questions/61555182/webot-camera-default-parameters-like-pixel-size-and-focus
+        # Not quite correct but close
+        fovy = 2 * np.arctan(np.tan(self._fovx/2) * (self._height / self._width))
+        fx = self._width/np.tan(self._fovx/2)/2 
+        fy = self._height/np.tan(fovy/2)/2 
+        print(f"fx:{fx}, fy:{fy}, fovy:{fovy}")
+        return np.array([[fx, 0,  self._width/2],
+                         [0,  fy, self._height/2],
+                         [0,  0,  1]], dtype=np.float32)
 
     def get_dist_coeffs(self):
         """ Get 1x6 distortion array """

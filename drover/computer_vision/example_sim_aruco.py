@@ -3,8 +3,7 @@
 import time
 from loguru import logger as log
 import numpy as np
-from .fiducial_detector import FiducialDetector
-from .camera import SimCamera
+from drover import FiducialDetector, SimCamera
 
 if __name__ == "__main__":
     # idk what im doing but its kinda sorta closeish

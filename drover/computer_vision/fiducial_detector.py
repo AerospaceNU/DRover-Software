@@ -6,7 +6,7 @@ import numpy as np
 from threading import Thread, Lock
 from loguru import logger as log
 from dataclasses import dataclass
-from .camera import Camera, OpenCVCamera
+from drover import Camera, OpenCVCamera
 
 
 @dataclass
@@ -91,6 +91,15 @@ class FiducialDetector():
 
         return markers
 
+    def can_see_marker(self, id):
+        """ Check if a marker is currently seen"""
+        seen = self.get_seen_markers() 
+        for marker in seen:
+            if marker.id == id:
+                return True
+        
+        return False
+
     def _run(self):
         """ Runs the main loop of the program
         """
@@ -104,16 +113,12 @@ class FiducialDetector():
 
             corners, ids, rejected = detector.detectMarkers(frame)
 
-            # display markers
-            if self._display:
-                cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-                # cv2.drawFrameAxes(frame, self._camera_matrix, self._dist_coeffs, rvec, tvec, 0.1)
-                cv2.imshow('aruco', frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-
             # continue if no markers found
             if len(corners) == 0:
+                if self._display:
+                    cv2.imshow('aruco', frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
                 continue
 
             # update markers
@@ -123,6 +128,10 @@ class FiducialDetector():
                 id = id[0]
 
                 rvec, tvec = self._estimate_pose(self._marker_length, c)
+
+                # draw on frame
+                cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+                cv2.drawFrameAxes(frame, self._camera_matrix, self._dist_coeffs, rvec, tvec, 0.1)
 
                 if self._aruco_dict.get(id) is None:
                     self._aruco_dict[id] = ArucoMarker(id)
@@ -135,3 +144,9 @@ class FiducialDetector():
                 self._aruco_dict[id].location = tvec
                 self._aruco_dict[id].last_seen = time.time()
                 self._aruco_dict[id].seen_counter += 1
+
+            # display markers
+            if self._display:
+                cv2.imshow('aruco', frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break

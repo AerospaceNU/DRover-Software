@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 import sys
+import random
 from loguru import logger as log
-from drover import Drone, MissionController, Waypoint
+from drover import Drone, MissionController, Waypoint, FiducialDetector, SimCamera
 
 
 # init pretty logging
@@ -18,24 +19,26 @@ log.add(sys.stderr, level="DEBUG", format=logger_format)
 def main(drone: Drone):
     # define waypoints
     waypoints_NEU = [
-        Waypoint(  0, -40+0, 2),
-        Waypoint( 30, -60+1, 2),
-        Waypoint( 60, -20+2, 2),
-        Waypoint( 60+4,  50, 2),
-        Waypoint(-40,  40+8, 2)
+        Waypoint(  0, -40, 2, aruco_id=0, wait_time=2),
+        Waypoint( 30, -60, 2, aruco_id=1, wait_time=2),
+        Waypoint( 60, -20, 2, aruco_id=2, wait_time=2),
+        Waypoint( 60,  50, 2, aruco_id=3, wait_time=2),
+        Waypoint(-40,  40, 2, aruco_id=4, wait_time=2)
     ]
-
-    # init drone
-    # drone.param_set("WPNAV_SPEED", 500)
-    # drone.param_set("WPNAV_ACCEL", 50)
+    # add random offsets
+    random.seed(1)
+    for i, wp in enumerate(waypoints_NEU):
+        wp.move_random(i*5)
 
     # init mission controller
     mc = MissionController(drone, waypoints_NEU)
+    detector = FiducialDetector(SimCamera(), display=True)
 
     # run mission
     # mc.simple_mission()
     # mc.circle_mission(radius=10.0, speed=1.0)
-    mc.spiral_mission()
+    # mc.spiral_mission()
+    mc.fiducial_search_mission(detector, end_radius=40, laps=2)
 
 if __name__ == "__main__":
     drone = Drone()
@@ -45,6 +48,6 @@ if __name__ == "__main__":
         log.error("Exception caught, RTLing drone...")
         log.exception(e)
         drone.rtl()
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as e:
         log.error("Keyboard interrupt, RTLing drone...")
         drone.rtl()
