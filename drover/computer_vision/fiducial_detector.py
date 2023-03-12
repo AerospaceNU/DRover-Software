@@ -141,8 +141,8 @@ class FiducialDetector():
                     self._aruco_dict[id].seen_counter = 0
 
                 self._aruco_dict[id].image_location = np.average(c[0], axis=0) / np.array([frame.shape[1], frame.shape[0]])
-                self._aruco_dict[id].rotation = rvec
-                self._aruco_dict[id].location = tvec
+                self._aruco_dict[id].rotation = rvec.T[0]
+                self._aruco_dict[id].location = tvec.T[0]
                 self._aruco_dict[id].last_seen = time.time()
                 self._aruco_dict[id].seen_counter += 1
 

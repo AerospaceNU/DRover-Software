@@ -86,23 +86,16 @@ class MissionController():
                                    start_radius, speed=speed, laps=laps, yaw=90,
                                    spiral_out_per_lap=(end_radius-start_radius)/laps,
                                    stop_function=stop_func)
-            # fly towards marker
+
+            # wait for drone to come to a stand still
+            #  TODO make not hard coded
+            time.sleep(2)
+
             marker = detector.get(waypoint.aruco_id)
-            while marker is not None:
-                if marker.image_location[0] > 0.6:
-                    # yaw right
-                    self._drone.velocity_NEU(0.25, 0, 0, yaw_rate=0.02, body_offset=True)
-                elif marker.image_location[0] < 0.4:
-                    # yaw left
-                    self._drone.velocity_NEU(0.25, 0, 0, yaw_rate=-0.02, body_offset=True)
-                else:
-                    # move forwards slowly
-                    self._drone.velocity_NEU(0.25, 0, 0, yaw_rate=0, body_offset=True)
+            if not not_found and marker is not None:
+                self._drone.goto_NEU(marker.location[2], marker.location[0], 
+                                     0, relative=True)
 
-                time.sleep(0.1) # 10Hz
-                marker = detector.get(waypoint.aruco_id)
-
-            self._drone.stop()
             time.sleep(waypoint.wait_time)
 
         self._drone.goto_NEU(0, 0, self._waypoints[0].alt)
