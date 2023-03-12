@@ -94,13 +94,10 @@ class SimCamera(Camera):
         """ Get the 3x3 camera matrix """
         # https://stackoverflow.com/questions/61555182/webot-camera-default-parameters-like-pixel-size-and-focus
         # Not quite correct but close
-        fovy = 2 * np.arctan(np.tan(self._fovx/2) * (self._height / self._width))
-        fx = self._width/np.tan(self._fovx/2)/2 
-        fy = self._height/np.tan(fovy/2)/2 
-        print(f"fx:{fx}, fy:{fy}, fovy:{fovy}")
-        return np.array([[fx, 0,  self._width/2],
-                         [0,  fy, self._height/2],
-                         [0,  0,  1]], dtype=np.float32)
+        f = self._width/np.tan(self._fovx/2)/2 
+        return np.array([[f, 0, self._width/2],
+                         [0, f, self._height/2],
+                         [0, 0, 1]], dtype=np.float32)
 
     def get_dist_coeffs(self):
         """ Get 1x6 distortion array """

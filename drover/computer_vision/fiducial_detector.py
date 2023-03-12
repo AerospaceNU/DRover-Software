@@ -70,7 +70,7 @@ class FiducialDetector():
         obj_points = np.array([[-marker_length / 2, marker_length / 2, 0],
                                [marker_length / 2,  marker_length / 2, 0],
                                [marker_length / 2, -marker_length / 2, 0],
-                               [-marker_length / 2, marker_length / 2, 0]])
+                               [-marker_length / 2,-marker_length / 2, 0]])
 
         # np.float32 because of https://stackoverflow.com/a/55815108
         # documentation on this on OpenCV's website
@@ -118,8 +118,7 @@ class FiducialDetector():
             if len(corners) == 0:
                 if self._display:
                     cv2.imshow('aruco', frame)
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
+                    cv2.waitKey(1)
                 continue
 
             # update markers
@@ -150,5 +149,5 @@ class FiducialDetector():
             # display markers
             if self._display:
                 cv2.imshow('aruco', frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+                cv2.waitKey(1)
+
