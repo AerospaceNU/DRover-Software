@@ -16,7 +16,7 @@ from typing import Dict, Union
 class Drone():
     def __init__(self,
                  connection_string="udpin:0.0.0.0:14551",
-                 max_speed=500,
+                 max_speed=750,
                  max_accel=50):
         """Construct a new Drone object and connect to a mavlink sink/source"""
 
@@ -367,8 +367,13 @@ class Drone():
         log.debug("Drone reached target position")
         return True
 
-    def velocity_NEU(self, north, east, up, yaw=None, yaw_rate=None):
+    def velocity_NEU(self, north, east, up, yaw=None, yaw_rate=None, body_offset=False):
         """ Set the drone's velocity in NED coordinates (and yaw in radians) """
+
+        if body_offset:
+            frame = mavutil.mavlink.MAV_FRAME_BODY_NED
+        else:
+            frame = mavutil.mavlink.MAV_FRAME_LOCAL_NED
 
         # ignore yaw if arguments not provided
         ignore_yaw       = 0b010000000000 
@@ -388,7 +393,7 @@ class Drone():
             int((time.time()-self._start_time)*1000),  # time_boot_ms
             self.connection.target_system,  # target_system
             self.connection.target_component,  # target_component
-            mavutil.mavlink.MAV_FRAME_LOCAL_NED,  # frame
+            frame,  # frame
             type_mask,  # type_mask 
             0,  # x
             0,  # y
@@ -402,7 +407,7 @@ class Drone():
             yaw if yaw is not None else 0,  # yaw
             yaw_rate if yaw_rate is not None else 0)  # yaw_rate
 
-    def stop(self, blocking=True, accel=200):
+    def stop(self, blocking=True, accel=100):
         """ Hard stop the drone's movement (accel cm/s/s) """
         self.param_set("WPNAV_ACCEL", accel)
         self.velocity_NEU(0, 0, 0, yaw_rate=0)

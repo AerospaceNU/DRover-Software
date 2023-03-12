@@ -80,12 +80,29 @@ class MissionController():
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            stop_func = lambda: detector.can_see_marker(waypoint.aruco_id)
-
-            self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, 
+            # go to waypoint and find marker
+            stop_func = lambda: (detector.get(waypoint.aruco_id) is not None)
+            not_found = self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, 
                                    start_radius, speed=speed, laps=laps, yaw=90,
                                    spiral_out_per_lap=(end_radius-start_radius)/laps,
                                    stop_function=stop_func)
+            # fly towards marker
+            marker = detector.get(waypoint.aruco_id)
+            while marker is not None:
+                if marker.image_location[0] > 0.6:
+                    # yaw right
+                    self._drone.velocity_NEU(0.25, 0, 0, yaw_rate=0.02, body_offset=True)
+                elif marker.image_location[0] < 0.4:
+                    # yaw left
+                    self._drone.velocity_NEU(0.25, 0, 0, yaw_rate=-0.02, body_offset=True)
+                else:
+                    # move forwards slowly
+                    self._drone.velocity_NEU(0.25, 0, 0, yaw_rate=0, body_offset=True)
+
+                time.sleep(0.1) # 10Hz
+                marker = detector.get(waypoint.aruco_id)
+
+            self._drone.stop()
             time.sleep(waypoint.wait_time)
 
         self._drone.goto_NEU(0, 0, self._waypoints[0].alt)

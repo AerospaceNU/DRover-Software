@@ -13,8 +13,9 @@ from drover import Camera, OpenCVCamera
 class ArucoMarker:
     """ Dataclass representing an aruco marker """
     id: int
-    location: np.ndarray = None
-    rotation: np.ndarray = None
+    image_location: int = np.zeros((2,1))
+    location: np.ndarray = np.zeros((3,1))
+    rotation: np.ndarray = np.zeros((3,1))
     last_seen: float = 0
     seen_counter: int = 0
 
@@ -80,25 +81,25 @@ class FiducialDetector():
 
         return (rvec, tvec)
 
+    def get(self, id):
+        """ Returns an ArucoMarker if seen, otherwise None """
+        marker = self._aruco_dict.get(id)
+        if (marker is not None and
+            marker.seen_counter >= self._frames_needed and
+            (time.time() - marker.last_seen) < self._marker_loss_timeout):
+            return marker
+
+        return None
+
     def get_seen_markers(self):
         """ Returns a list of valid ArUco markers that are currently seen """
         markers = []
-
         for marker in self._aruco_dict.values():
             if (marker.seen_counter >= self._frames_needed and
                (time.time() - marker.last_seen) < self._marker_loss_timeout):
                 markers.append(marker)
 
         return markers
-
-    def can_see_marker(self, id):
-        """ Check if a marker is currently seen"""
-        seen = self.get_seen_markers() 
-        for marker in seen:
-            if marker.id == id:
-                return True
-        
-        return False
 
     def _run(self):
         """ Runs the main loop of the program
@@ -140,6 +141,7 @@ class FiducialDetector():
                 if (time.time() - self._aruco_dict[id].last_seen) > self._marker_loss_timeout:
                     self._aruco_dict[id].seen_counter = 0
 
+                self._aruco_dict[id].image_location = np.average(c[0], axis=0) / np.array([frame.shape[1], frame.shape[0]])
                 self._aruco_dict[id].rotation = rvec
                 self._aruco_dict[id].location = tvec
                 self._aruco_dict[id].last_seen = time.time()

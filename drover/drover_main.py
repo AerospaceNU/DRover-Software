@@ -32,7 +32,7 @@ def main(drone: Drone):
 
     # init mission controller
     mc = MissionController(drone, waypoints_NEU)
-    detector = FiducialDetector(SimCamera(), display=True)
+    detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=2)
 
     # run mission
     # mc.simple_mission()
