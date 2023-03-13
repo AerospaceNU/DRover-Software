@@ -89,10 +89,11 @@ class MissionController():
 
             # wait for drone to come to a stand still
             #  TODO make not hard coded
-            time.sleep(2)
+            time.sleep(4)
 
             marker = detector.get(waypoint.aruco_id)
             if not not_found and marker is not None:
+                log.success(f"Found marker {waypoint.aruco_id}")
                 self._drone.goto_NEU(marker.location[2], marker.location[0], 
                                      0, relative=True)
 

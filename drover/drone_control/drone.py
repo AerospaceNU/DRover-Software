@@ -6,6 +6,7 @@ import numpy as np
 from loguru import logger as log
 from threading import Thread
 from pymavlink import mavutil
+from pymavlink.dialects.v10 import ardupilotmega as mavlink
 from typing import Dict, Union
 
 # mavutil reference: https://mavlink.io/en/mavgen_python
@@ -21,7 +22,7 @@ class Drone():
         """Construct a new Drone object and connect to a mavlink sink/source"""
 
         # init variables
-        self._state = mavutil.mavlink.MAV_STATE_UNINIT
+        self._state = mavlink.MAV_STATE_UNINIT
         self._start_time = time.time()
         self._max_speed = max_speed
         self._max_accel = max_accel
@@ -44,18 +45,37 @@ class Drone():
                  f"component {self.connection.target_component})")
 
         # set stream rates to be faster
-        self.set_stream_rate( 4, mavutil.mavlink.MAV_DATA_STREAM_ALL)
-        self.set_stream_rate(15, mavutil.mavlink.MAV_DATA_STREAM_POSITION)
+        self.set_stream_rate( 4, mavlink.MAV_DATA_STREAM_ALL)
+        self.set_mesage_rate(15, mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
+        self.set_mesage_rate(15, mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+        self.set_mesage_rate(15, mavlink.MAVLINK_MSG_ID_ATTITUDE)
 
         # configure some params
         self.param_set("WPNAV_SPEED", self._max_speed)
         self.param_set("WPNAV_ACCEL", self._max_accel)
 
         # set the system status to active
-        self._state = mavutil.mavlink.MAV_STATE_ACTIVE
+        self._state = mavlink.MAV_STATE_ACTIVE
+
+    def _run(self):
+        """ Continuously send heartbeats to the drone at 2Hz """
+        # "Generally it should be sent from the same thread as
+        # all other messages. This is in order to ensure that the heartbeat
+        # is only published when the thread is healthy."
+        # Oops - Ian
+
+        while True:
+            self.connection.mav.heartbeat_send(
+                mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+                mavlink.MAV_AUTOPILOT_INVALID,
+                0,
+                0,
+                self._state)
+
+            time.sleep(0.5)
 
 ##################
-# Helper functions
+# Misc functions
 ##################
 
     def drain_mavlink_buffer(self):
@@ -103,7 +123,7 @@ class Drone():
                 return False
             log.debug(f"Received ack for command {command} "
                       f"with result {ack.result}")
-            return ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED
+            return ack.result == mavlink.MAV_RESULT_ACCEPTED
 
         return True
 
@@ -111,33 +131,16 @@ class Drone():
         """ Set the state of the drone """
         self._state = state
         self.connection.mav.heartbeat_send(
-            mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
-            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+            mavlink.MAV_AUTOPILOT_INVALID,
             0,
             0,
             self._state)
 
         log.info("Drone state set to " + str(state))
 
-    def _run(self):
-        """ Continuously send heartbeats to the drone at 2Hz """
-        # "Generally it should be sent from the same thread as
-        # all other messages. This is in order to ensure that the heartbeat
-        # is only published when the thread is healthy."
-        # Oops - Ian
-
-        while True:
-            self.connection.mav.heartbeat_send(
-                mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
-                mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-                0,
-                0,
-                self._state)
-
-            time.sleep(0.5)
-
 ##################
-# Wait functions
+# Logic functions
 ##################
 
     def wait_heartbeat(self):
@@ -152,7 +155,7 @@ class Drone():
         while not sys_good_health:
             msg = self.connection.recv_match(type='SYS_STATUS', blocking=True)
             sys_good_health = (msg.onboard_control_sensors_present
-                               & mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK)
+                               & mavlink.MAV_SYS_STATUS_PREARM_CHECK)
 
     def wait_disarmed(self):
         """ Wait for the drone to be disarmed """
@@ -161,12 +164,8 @@ class Drone():
         while (self.connection.recv_match(
                 type='HEARTBEAT',
                 blocking=True).base_mode
-                & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
+                & mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
             pass
-
-##################
-# Logic functions
-##################
 
     def is_moving(self, min_speed=5):
         """ Checks if the drone is moving (speed is cm/s) """
@@ -180,14 +179,33 @@ class Drone():
         return False
 
     def at_location_NEU(self, north, east, up=None, tolerance=1.0):
-        msg = self.connection.recv_match(type='LOCAL_POSITION_NED',
-                                            blocking=True)
+        location = self.get_location_NEU()
+
         if up is None:
-            return abs(msg.x - north) < 0.1 and abs(msg.y - east) < 0.1
+            return abs(location[0] - north) < 0.1 and abs(location[1] - east) < 0.1
         else:
-            return (abs(msg.x - north) < 0.1 and
-                    abs(msg.y - east) < 0.1 and
-                    abs(msg.z + up) < 0.1)
+            return (abs(location[0] - north) < 0.1 and
+                    abs(location[1] - east) < 0.1 and
+                    abs(location[2] - up) < 0.1)
+
+##################
+# Data functions
+##################
+
+    def get_location_NEU(self):
+        """ Get current location in NEU frame (north, east, up) """
+        location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+        return np.array([location_msg.x, location_msg.y, -location_msg.z])
+    
+    def get_velocity_NEU(self):
+        """ Get current velocity in NEU frame (north, east, up) """
+        location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+        return np.array([location_msg.vx, location_msg.vy, -location_msg.vz])
+
+    def get_attitude(self):
+        """ Get current attitude in euler angles (roll, pitch, yaw) """
+        attitude_msg = self.connection.recv_match(type='ATTITUDE', blocking=True)
+        return np.array([attitude_msg.roll, attitude_msg.pitch, attitude_msg.yaw])
 
 ##################
 # Config functions
@@ -198,15 +216,15 @@ class Drone():
         # TODO consider MAV_CMD_NAV_GUIDED_ENABLE
         # https://ardupilot.org/dev/docs/mavlink-get-set-flightmode.html
         return self.send_command_long(
-                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                param1=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                mavlink.MAV_CMD_DO_SET_MODE,
+                param1=mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
                 param2=4,
                 wait_ack=True)
 
     def rtl(self):
         """ Set the drone to RTL mode """
         return self.send_command_long(
-                mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
+                mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
                 wait_ack=True)
 
     def arm_takeoff(self, altitude=2.5, blocking=True):
@@ -222,7 +240,7 @@ class Drone():
         # send command to arm the drone (set param2 to 21196 to force arming)
         # https://mavlink.io/en/messages/common.html#MAV_CMD_COMPONENT_ARM_DISARM
         armed = self.send_command_long(
-            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
             param1=1, wait_ack=True)
 
         if not armed:
@@ -234,7 +252,7 @@ class Drone():
 
         # takeoff
         taking_off = self.send_command_long(
-                            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+                            mavlink.MAV_CMD_NAV_TAKEOFF,
                             param7=altitude,
                             wait_ack=True)
 
@@ -269,8 +287,9 @@ class Drone():
         log.error(f"Failed to set {parm_name} to {parm_value}")
         return False
 
-    def set_stream_rate(self, hz, stream=mavutil.mavlink.MAV_DATA_STREAM_ALL):
+    def set_stream_rate(self, hz, stream=mavlink.MAV_DATA_STREAM_ALL):
         """ Set the stream rate of data from the drone """
+        # https://ardupilot.org/dev/docs/mavlink-requesting-data.html
         # NOTE: mavproxy and the GCS will override this
         # run `set streamrate -1` to disable in mavproxy, and look in GCS settings
         self.connection.mav.request_data_stream_send(
@@ -279,6 +298,15 @@ class Drone():
             stream, # stream
             hz,     # rate
             1)      # start/stop
+
+    def set_mesage_rate(self, hz, msg_id):
+        """ Set the rate of a specific message from the drone """
+        # https://mavlink.io/en/messages/common.html#MAV_CMD_SET_MESSAGE_INTERVAL
+        self.send_command_long(
+            mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+            param1=msg_id,
+            param2=1000000 / hz,
+            wait_ack=True)
 
 ##################
 # Motion functions
@@ -290,7 +318,7 @@ class Drone():
         self.stop(blocking=True)
 
         ack = self.send_command_long(
-                    mavutil.mavlink.MAV_CMD_NAV_LAND,
+                    mavlink.MAV_CMD_NAV_LAND,
                     wait_ack=True)
 
         if not ack:
@@ -315,10 +343,23 @@ class Drone():
                  blocking=True, stop_function=None):
         """ Go to a position in NEU coordinates """
 
+        # if relative:
+        #     frame = mavlink.MAV_FRAME_BODY_OFFSET_NED
+        # else:
+        frame = mavlink.MAV_FRAME_LOCAL_NED
+
+        log.info(f"Going to NEU {'relative' if relative else 'position'}: {north:.2f}, {east:.2f}, {alt:.2f}")
+
+        # if relative, convert to absolute target position
         if relative:
-            frame = mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED
-        else:
-            frame = mavutil.mavlink.MAV_FRAME_LOCAL_NED
+            location = self.get_location_NEU()
+            heading = self.get_attitude()[2]
+
+            rotation_matrix = np.array([[np.cos(heading), -np.sin(heading)],
+                                        [np.sin(heading),  np.cos(heading)]])
+
+            north, east = rotation_matrix @ np.array([north, east]) + location[:2]
+            alt = location[2] + alt
 
         # ignore yaw if arguments not provided
         ignore_yaw       = 0b010000000000 
@@ -356,7 +397,6 @@ class Drone():
             return True
 
         # wait for the drone to reach the target position
-        log.info(f"Going to NEU position: {north:.2f}, {east:.2f}, {alt:.2f}")
         while not self.at_location_NEU(north, east, alt):
             time.sleep(0.001)
             if stop_function is not None and stop_function():
@@ -371,9 +411,9 @@ class Drone():
         """ Set the drone's velocity in NED coordinates (and yaw in radians) """
 
         if body_offset:
-            frame = mavutil.mavlink.MAV_FRAME_BODY_NED
+            frame = mavlink.MAV_FRAME_BODY_NED
         else:
-            frame = mavutil.mavlink.MAV_FRAME_LOCAL_NED
+            frame = mavlink.MAV_FRAME_LOCAL_NED
 
         # ignore yaw if arguments not provided
         ignore_yaw       = 0b010000000000 
@@ -426,8 +466,7 @@ class Drone():
         if speed/radius > 1/5:
             log.warning(f"Circle speed/radius ratio over 1/5 ({speed:.1f}/{radius:.1f})")
 
-        location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
-        location = np.array([location_msg.x, location_msg.y])
+        location = self.get_location_NEU()[:2]
 
         # calculate closest point from the drone on the circle
         circle_center = np.array([north, east])
@@ -446,13 +485,12 @@ class Drone():
 
         if laps >= 0.5:
             log.debug(f"Starting circle around ({north:.2f}, {east:.2f}, {up:.2f}) with radius {radius:.2f}m")
-        location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
-        location = np.array([location_msg.x, location_msg.y])
+        location = self.get_location_NEU()[:2]
         angle_traveled_offset = angle_traveled = last_angle = 0
         
         # loop until enough laps have completed
         while angle_traveled_offset+angle_traveled < laps*2*np.pi:
-            # check stop contidtion
+            # check stop condition
             if stop_function is not None and stop_function():
                 log.debug("Stopping circle due to stop function")
                 if stop_on_complete:
@@ -460,8 +498,7 @@ class Drone():
                 return False
 
             # get current location
-            location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
-            location = np.array([location_msg.x, location_msg.y])
+            location = self.get_location_NEU()[:2]
 
             # calculate the circle's tangent vector at the current location
             towards_circle = circle_center-location
