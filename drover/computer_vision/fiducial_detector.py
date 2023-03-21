@@ -23,7 +23,6 @@ class ArucoMarker:
 class FiducialDetector():
     """ Asynchronously detects and tracks fiducials in a video stream """
 
-    @log.catch
     def __init__(self,
                  camera: Camera = None,
                  dictionary: int = cv2.aruco.DICT_4X4_50,
@@ -81,7 +80,7 @@ class FiducialDetector():
 
         return (rvec, tvec)
 
-    def get(self, id):
+    def get_seen(self, id):
         """ Returns an ArucoMarker if seen, otherwise None """
         marker = self._aruco_dict.get(id)
         if (marker is not None and
@@ -90,6 +89,10 @@ class FiducialDetector():
             return marker
 
         return None
+
+    def get_latest(self, id):
+        """ Returns the last ArucoMarker seen, if never seen returns None """
+        return self._aruco_dict.get(id)
 
     def get_seen_markers(self):
         """ Returns a list of valid ArUco markers that are currently seen """

@@ -26,6 +26,7 @@ class Drone():
         self._start_time = time.time()
         self._max_speed = max_speed
         self._max_accel = max_accel
+        self._prev_orbit_args = None 
 
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
@@ -207,6 +208,22 @@ class Drone():
         attitude_msg = self.connection.recv_match(type='ATTITUDE', blocking=True)
         return np.array([attitude_msg.roll, attitude_msg.pitch, attitude_msg.yaw])
 
+    def rel_to_abs_NEU(self, north, east, up, use_heading=True):
+        """ Convert relative coordinates to absolute coordinates """
+        current_location = self.get_location_NEU()
+        
+        if use_heading:
+            heading = self.get_attitude()[2]
+
+            rotation_matrix = np.array([[np.cos(heading), -np.sin(heading)],
+                                        [np.sin(heading),  np.cos(heading)]])
+
+            north_rel, east_rel = rotation_matrix @ np.array([north, east])
+            return current_location + np.array([north_rel, east_rel, up]) 
+
+        return current_location + np.array([north, east, up])
+
+
 ##################
 # Config functions
 ##################
@@ -343,23 +360,16 @@ class Drone():
                  blocking=True, stop_function=None):
         """ Go to a position in NEU coordinates """
 
-        # if relative:
-        #     frame = mavlink.MAV_FRAME_BODY_OFFSET_NED
-        # else:
         frame = mavlink.MAV_FRAME_LOCAL_NED
 
-        log.info(f"Going to NEU {'relative' if relative else 'position'}: {north:.2f}, {east:.2f}, {alt:.2f}")
+        if blocking:
+            log.info(f"Going to NEU {'relative' if relative else 'position'}: {north:.2f}, {east:.2f}, {alt:.2f}")
 
         # if relative, convert to absolute target position
+        # this was done rather than using the MAV_FRAME_LOCAL_OFFSET_NED frame
+        # so we could keep track of the absolute target position
         if relative:
-            location = self.get_location_NEU()
-            heading = self.get_attitude()[2]
-
-            rotation_matrix = np.array([[np.cos(heading), -np.sin(heading)],
-                                        [np.sin(heading),  np.cos(heading)]])
-
-            north, east = rotation_matrix @ np.array([north, east]) + location[:2]
-            alt = location[2] + alt
+            north, east, alt = self.rel_to_abs_NEU(north, east, alt)
 
         # ignore yaw if arguments not provided
         ignore_yaw       = 0b010000000000 
@@ -390,8 +400,8 @@ class Drone():
             0,  # afx
             0,  # afy
             0,  # afz
-            0,  # yaw
-            0)  # yaw_rate
+            yaw if yaw is not None else 0,  # yaw
+            yaw_rate if yaw_rate is not None else 0)  # yaw_rate
 
         if not blocking:
             return True
@@ -458,13 +468,12 @@ class Drone():
 
         self.param_set("WPNAV_ACCEL", self._max_accel)
 
-    def circle_NEU(self, north, east, up, radius, yaw=0.0,
-                   laps=1.0, speed=1.0, ccw=False, spiral_out_per_lap=0.0, 
-                   stop_on_complete=True, stop_function=None):
-        """ Perform a circle around provided point (blocking, yaw in degrees) """
-
-        if speed/radius > 1/5:
-            log.warning(f"Circle speed/radius ratio over 1/5 ({speed:.1f}/{radius:.1f})")
+    def orbit_NEU(self, north, east, up, radius, yaw=0.0,
+                  laps=1.0, speed=1.0, ccw=False, spiral_out_per_lap=0.0, 
+                  stop_on_complete=True, max_dps=10, stop_function=None):
+        """ Perform an orbit around provided point (blocking, yaw in degrees).
+            Returns true if the orbit was completed, false if it was stopped.
+        """
 
         location = self.get_location_NEU()[:2]
 
@@ -481,39 +490,48 @@ class Drone():
             log.debug(f"Flying to closest point on circle ({location[0]:.2f}, {location[1]:.2f}) -> ({closest_start_point[0]:.2f}, {closest_start_point[1]:.2f})")
             ret = self.goto_NEU(*closest_start_point, up, stop_function=stop_function)
             if not ret:
+                self._prev_orbit_args = (north, east, up, radius, yaw, laps, 
+                                           speed, ccw, spiral_out_per_lap, 
+                                           stop_on_complete, max_dps, 
+                                           stop_function)
                 return False
 
         if laps >= 0.5:
             log.debug(f"Starting circle around ({north:.2f}, {east:.2f}, {up:.2f}) with radius {radius:.2f}m")
-        location = self.get_location_NEU()[:2]
-        angle_traveled_offset = angle_traveled = last_angle = 0
-        
+
         # loop until enough laps have completed
+        angle_traveled_offset = angle_traveled = last_angle = 0
+        spiral_radius = radius
         while angle_traveled_offset+angle_traveled < laps*2*np.pi:
             # check stop condition
             if stop_function is not None and stop_function():
                 log.debug("Stopping circle due to stop function")
                 if stop_on_complete:
                     self.stop()
+                laps_left = laps-(angle_traveled_offset+angle_traveled)/(2*np.pi)
+                self._prev_orbit_args = (north, east, up, spiral_radius, yaw, 
+                                           laps_left, speed, ccw, 
+                                           spiral_out_per_lap, 
+                                           stop_on_complete, max_dps,
+                                           stop_function)
                 return False
 
-            # get current location
-            location = self.get_location_NEU()[:2]
-
             # calculate the circle's tangent vector at the current location
+            location = self.get_location_NEU()[:2]
             towards_circle = circle_center-location
             dist_to_circle = np.sqrt(np.sum(towards_circle**2))
             normal_to_circle = towards_circle/dist_to_circle
             normal_tangent = np.array([-normal_to_circle[1], normal_to_circle[0]])
+            if not ccw:
+                normal_tangent *= -1
 
             # calculate the radius for spirals
             spiral_radius = radius + (angle_traveled_offset+angle_traveled)/(2*np.pi)*spiral_out_per_lap
 
             # calculate velocity vector along the tangent and with a component to correct drifting away from the center
-            if not ccw:
-                normal_tangent *= -1
+            max_dps_speed = np.deg2rad(max_dps)*spiral_radius
             correction_vec = normal_to_circle*(dist_to_circle-spiral_radius)
-            velocity_vec = normal_tangent*speed+correction_vec
+            velocity_vec = normal_tangent*min(max_dps_speed, speed)+correction_vec
 
             # calculate yaw wrt tangent of circle, and add yaw offset
             yaw_calculated = None
@@ -536,4 +554,15 @@ class Drone():
         if stop_on_complete:
             self.stop()
 
+        self._prev_orbit_args = None
         return True
+
+    def resume_orbit(self):
+        """ Resumes the last orbit """
+        if self._prev_orbit_args is None:
+            return False
+        
+        else:
+            return self.orbit_NEU(*self._prev_orbit_args)
+            
+

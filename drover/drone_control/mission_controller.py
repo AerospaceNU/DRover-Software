@@ -21,8 +21,8 @@ class Waypoint():
     alt: float
     wait_time: float = 1.0
     use_latlon: bool = False
-    aruco_id: int = -1
-    aruco2_id: int = -1
+    aruco_id: int = None
+    aruco2_id: int = None
 
     def move_random(self, dist):
         """ Moves waypoint `dist` in random direction """
@@ -56,7 +56,7 @@ class MissionController():
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, radius, speed=speed, laps=laps, yaw=yaw)
+            self._drone.orbit_NEU(waypoint.x, waypoint.y, waypoint.alt, radius, speed=speed, laps=laps, yaw=yaw)
             time.sleep(waypoint.wait_time)
 
         self._drone.goto_NEU(0, 0, self._waypoints[0].alt)
@@ -67,7 +67,7 @@ class MissionController():
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, 
+            self._drone.orbit_NEU(waypoint.x, waypoint.y, waypoint.alt, 
                                    start_radius, speed=speed, laps=laps, yaw=90,
                                    spiral_out_per_lap=(end_radius-start_radius)/laps)
             time.sleep(waypoint.wait_time)
@@ -75,29 +75,64 @@ class MissionController():
         self._drone.goto_NEU(0, 0, self._waypoints[0].alt)
         self._drone.land()
 
-    def fiducial_search_mission(self, detector: FiducialDetector, start_radius=5, end_radius=20.0, speed=2.0, laps=4):
-        """ Run a mission that spirals all waypoints """
+    def fiducial_search_mission(self, detector: FiducialDetector, 
+                                start_radius=5, end_radius=20.0, speed=4.0, 
+                                laps=4, max_dps=10):
+        
+        """ Run a mission that searches for aruco markers at waypoints """
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            # go to waypoint and find marker
-            stop_func = lambda: (detector.get(waypoint.aruco_id) is not None)
-            not_found = self._drone.circle_NEU(waypoint.x, waypoint.y, waypoint.alt, 
-                                   start_radius, speed=speed, laps=laps, yaw=90,
-                                   spiral_out_per_lap=(end_radius-start_radius)/laps,
-                                   stop_function=stop_func)
+            # if no marker, just go to waypoint and continue
+            if waypoint.aruco_id is None:
+                log.info(f"Going to positional waypoint")
+                self._drone.goto_NEU(waypoint.x, waypoint.y, waypoint.alt)
+                time.sleep(waypoint.wait_time)
+                continue
+
+            # else if there is a marker, go to waypoint and search for marker
+            if waypoint.aruco2_id is None:
+                stop_func = lambda: (detector.get_seen(waypoint.aruco_id) is not None)
+            else:
+                stop_func = lambda: (detector.get_seen(waypoint.aruco_id) is not None or 
+                                     detector.get_seen(waypoint.aruco2_id) is not None)
+            not_found = self._drone.orbit_NEU(waypoint.x, waypoint.y, waypoint.alt, 
+                                start_radius, speed=speed, laps=laps, yaw=0,
+                                spiral_out_per_lap=(end_radius-start_radius)/laps,
+                                stop_on_complete=False,
+                                max_dps=max_dps, stop_function=stop_func)
 
             # wait for drone to come to a stand still
-            #  TODO make not hard coded
+            #  TODO make not hard coded, 
+            #  add go back and face marker last seen
+            location = self._drone.get_location_NEU()
+            yaw = self._drone.get_attitude()[2]
+            self._drone.stop()
+            self._drone.goto_NEU(location[0], location[1], location[2], yaw=yaw)
             time.sleep(4)
 
-            marker = detector.get(waypoint.aruco_id)
-            if not not_found and marker is not None:
-                log.success(f"Found marker {waypoint.aruco_id}")
-                self._drone.goto_NEU(marker.location[2], marker.location[0], 
+            # if marker(s) found, go there
+            marker = detector.get_seen(waypoint.aruco_id)
+            marker2 = detector.get_seen(waypoint.aruco2_id)
+            if not_found:
+                log.error("Marker(s) not found in search area")
+            elif marker is not None and marker2 is not None:
+                log.success(f"Found two markers ({waypoint.aruco_id}, {waypoint.aruco2_id})")
+                self._drone.goto_NEU((marker.location[2]+marker2.location[2])/2, 
+                                     (marker.location[0]+marker.location[0])/2, 
                                      0, relative=True)
+            elif marker is not None:
+                log.success(f"Found single marker ({waypoint.aruco_id})")
+                self._drone.goto_NEU(marker.location[2], marker.location[0], 0, relative=True)
+            elif marker2 is not None:
+                log.success(f"Found single marker ({waypoint.aruco2_id})")
+                self._drone.goto_NEU(marker2.location[2], marker2.location[0], 0, relative=True)
+            else:
+                log.error("Marker(s) lost after seen in search area")
 
+            # wait there a bit
             time.sleep(waypoint.wait_time)
 
+        # done with waypoints, go home and land
         self._drone.goto_NEU(0, 0, self._waypoints[0].alt)
         self._drone.land()
