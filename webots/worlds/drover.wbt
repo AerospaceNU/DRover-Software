@@ -1,0 +1,102 @@
+#VRML_SIM R2023a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023a/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023a/projects/objects/solids/protos/SolidBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023a/projects/appearances/protos/SandyGround.proto"
+EXTERNPROTO "../protos/Iris.proto"
+EXTERNPROTO "../protos/ArucoPole.proto"
+
+WorldInfo {
+  title "Iris Ardupilot"
+  basicTimeStep 2
+  FPS 20
+}
+Viewpoint {
+  orientation -0.16490902542651703 0.7859746860337231 0.5958597202757263 0.6771260732772154
+  position -4.830852043784758 -2.2746313866243457 3.7110282409303186
+  follow "Iris"
+  followSmoothness 0.01
+}
+TexturedBackground {
+  texture "mars"
+}
+TexturedBackgroundLight {
+  texture "mars"
+}
+Floor {
+  size 300 300
+  appearance SandyGround {
+    colorOverride 1 0.8 0.7
+    textureTransform TextureTransform {
+    }
+  }
+}
+Iris {
+  translation 0 0 0.11
+  controller "ardupilot_vehicle_controller"
+  controllerArgs [
+    "--motors"
+    "m1_motor, m2_motor, m3_motor, m4_motor"
+    "--camera"
+    "camera"
+    "--camera-port"
+    "5599"
+  ]
+  extensionSlot [
+    Camera {
+      translation 0.05 0 0.05
+      rotation 0 1 0 0
+      width 640
+      height 480
+    }
+  ]
+}
+SolidBox {
+  size 2 2 0.1
+  appearance PBRAppearance {
+    baseColorMap ImageTexture {
+      url [
+        "https://i.imgur.com/53fJvjO.jpg"
+      ]
+    }
+    roughness 0.5
+    metalness 0
+  }
+}
+ArucoPole {
+  translation 0 -40 0
+  name "pole 0"
+  height 0.8
+}
+ArucoPole {
+  translation 30 -60 0
+  name "pole 1"
+  height 0.8
+  markerId "1"
+}
+ArucoPole {
+  translation 60 -20 0
+  name "pole 2"
+  height 0.8
+  markerId "2"
+}
+ArucoPole {
+  translation 60 50 0
+  name "pole 3"
+  height 0.8
+  markerId "3"
+}
+ArucoPole {
+  translation -40 38 0
+  name "pole 4"
+  height 0.8
+  markerId "4"
+}
+ArucoPole {
+  translation -40 42 0
+  name "pole 5"
+  height 0.8
+  markerId "5"
+}

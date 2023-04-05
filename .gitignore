@@ -4,3 +4,6 @@ drover.egg-info/
 
 # ignored files
 *.mp4
+.venv
+.*.jpg
+*.wbproj
