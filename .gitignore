@@ -4,3 +4,4 @@ drover.egg-info/
 
 # ignored files
 *.mp4
+*.DS_Store
