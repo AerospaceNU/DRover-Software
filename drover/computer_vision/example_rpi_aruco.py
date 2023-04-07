@@ -15,7 +15,7 @@ if __name__ == "__main__":
     dist_coeffs = np.array([-.4576, 0.3389, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30)
 
-    detector = FiducialDetector(camera=cam, display=True)
+    detector = FiducialDetector(camera=cam, display=True, display_scale=.5)
 
     while True:
         time.sleep(1)

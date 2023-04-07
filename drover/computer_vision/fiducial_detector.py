@@ -29,7 +29,8 @@ class FiducialDetector():
                  size: float = 0.2,
                  display: bool = False,
                  frames_needed: int = 3,
-                 marker_loss_timeout: float = 0.5):
+                 marker_loss_timeout: float = 0.5,
+                 display_scale: float = 1.0):
 
         # get abstracted camera object to retrieve frames
         if camera is None:
@@ -46,6 +47,7 @@ class FiducialDetector():
         self._marker_length = size
         self._aruco_dict = {}
         self._lock = Lock()
+        self.display_scale = display_scale
 
         # Run the camera thread
         self._camera_thread = Thread(target=self._run, daemon=True)
@@ -151,6 +153,10 @@ class FiducialDetector():
 
             # display markers
             if self._display:
-                cv2.imshow('aruco', frame)
+                width = int(frame.shape[1] * self.display_scale)
+                height = int(frame.shape[0] * self.display_scale)
+                dim = (width, height)
+                resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
+                cv2.imshow('aruco', resized)
                 cv2.waitKey(1)
 
