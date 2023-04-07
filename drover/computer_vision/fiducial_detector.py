@@ -122,7 +122,11 @@ class FiducialDetector():
             # continue if no markers found
             if len(corners) == 0:
                 if self._display:
-                    cv2.imshow('aruco', frame)
+                    width = int(frame.shape[1] * self.display_scale)
+                    height = int(frame.shape[0] * self.display_scale)
+                    dim = (width, height)
+                    resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
+                    cv2.imshow('aruco', resized)
                     cv2.waitKey(1)
                 continue
 
