@@ -26,7 +26,7 @@ class RaspberryPiCamera(Camera):
     def get_frame(self) -> np.ndarray:
         """ Get the latest image from the camera """
         image = self.picam2.capture_array()
-        cv2.cvtColor(cv2.COLOR_RGB2BGR)
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         return image
 
     def get_camera_matrix(self):
