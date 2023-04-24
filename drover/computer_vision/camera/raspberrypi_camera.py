@@ -3,8 +3,12 @@
 import cv2
 import numpy as np
 from .camera import Camera
-from picamera2 import Picamera2
 
+# workaround to allow running module on not raspberry pi
+try:
+    from picamera2 import Picamera2
+except ModuleNotFoundError:
+    Picamera2 = None
 
 class RaspberryPiCamera(Camera):
     """ Raspberrypi's camera interface """

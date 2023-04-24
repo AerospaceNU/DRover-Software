@@ -14,8 +14,8 @@ WorldInfo {
   FPS 20
 }
 Viewpoint {
-  orientation -0.16490902542651703 0.7859746860337231 0.5958597202757263 0.6771260732772154
-  position -4.830852043784758 -2.2746313866243457 3.7110282409303186
+  orientation 0.1969287523756888 0.82915338556505 -0.5231861329333667 0.8522851227443154
+  position -7.92470976010661 3.9874985484027907 7.88721213386083
   follow "Iris"
   followSmoothness 0.01
 }
@@ -68,35 +68,40 @@ SolidBox {
 ArucoPole {
   translation 0 -40 0
   name "pole 0"
-  height 0.8
+  size 0.2
 }
 ArucoPole {
   translation 30 -60 0
   name "pole 1"
-  height 0.8
+  size 0.2
+  height 1.5
   markerId "1"
 }
 ArucoPole {
   translation 60 -20 0
   name "pole 2"
-  height 0.8
+  size 0.2
+  height 1.7
   markerId "2"
 }
 ArucoPole {
   translation 60 50 0
   name "pole 3"
-  height 0.8
+  size 0.2
+  height 1.25
   markerId "3"
 }
 ArucoPole {
   translation -40 38 0
   name "pole 4"
-  height 0.8
+  size 0.2
+  height 1.5
   markerId "4"
 }
 ArucoPole {
   translation -40 42 0
   name "pole 5"
-  height 0.8
+  size 0.2
+  height 1.5
   markerId "5"
 }

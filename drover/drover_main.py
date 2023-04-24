@@ -19,16 +19,16 @@ log.add(sys.stderr, level="DEBUG", format=logger_format)
 def main(drone: Drone):
     # define waypoints
     waypoints_NEU = [
-        Waypoint(  0, -40, 2, wait_time=2),
-        Waypoint( 30, -60, 2, aruco_id=1, wait_time=2),
-        Waypoint( 60, -20, 2, aruco_id=2, wait_time=2),
-        Waypoint( 60,  50, 2, aruco_id=3, wait_time=2),
-        Waypoint(-40,  40, 2, aruco_id=4, aruco2_id=5, wait_time=2)
+        # Waypoint(  0,  40, 2, wait_time=2),
+        Waypoint( 30,  60, 2, aruco_id=1, wait_time=2),
+        Waypoint( 60,  20, 2, aruco_id=2, wait_time=2),
+        Waypoint( 60,  -50, 2, aruco_id=3, wait_time=2),
+        Waypoint(-40,  -40, 2, aruco_id=4, aruco2_id=5, wait_time=2)
     ]
     # add random offsets
-    random.seed(2)
-    for i, wp in enumerate(waypoints_NEU):
-        wp.move_random(i*5)
+    # random.seed(2)
+    # for i, wp in enumerate(waypoints_NEU):
+    #     wp.move_random(i*5)
 
     # init mission controller
     mc = MissionController(drone, waypoints_NEU)

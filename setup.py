@@ -17,7 +17,8 @@ setup(
         'opencv-python (>=4.7.0.68)',
         'opencv-contrib-python (>=4.7.0.68)',
         'pymavlink',
-        'loguru'
+        'loguru',
+        'navpy'
     ],
     scripts=['drover/drover_main.py']  # Provided files can be run from CLI
 )

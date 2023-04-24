@@ -11,7 +11,7 @@ drone.inplace_yaw(135)
 drone.inplace_yaw(-135)
 drone.inplace_yaw(0)
 
-drone.goto_NEU(5, 0, 2)
+drone.goto(5, 0, 2)
 
 times_start = time.time()
 while time.time() - times_start < 5:
