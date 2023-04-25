@@ -20,5 +20,8 @@ setup(
         'loguru',
         'navpy'
     ],
-    scripts=['drover/drover_main.py']  # Provided files can be run from CLI
+    scripts=[
+        'drover/drover_main.py',
+        'drover/drover_startup.sh'
+    ]  # Provided files can be run from CLI
 )

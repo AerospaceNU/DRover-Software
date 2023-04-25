@@ -20,18 +20,24 @@ class Waypoint():
     y: float
     alt: float
     wait_time: float = 1.0
-    land: bool = False
+    land: bool = True
     use_latlon: bool = False
     aruco_id: int = None
     aruco2_id: int = None
 
     def move_random(self, dist):
-        """ Moves waypoint `dist` in random direction """
+        """ Moves waypoint roughly `dist` m in random direction """
         angle = random.uniform(0, 2*np.pi)
-        x = dist*np.cos(angle)
-        y = dist*np.sin(angle)
-        self.x += x
-        self.y += y
+        dx = dist*np.cos(angle)
+        dy = dist*np.sin(angle)
+        if self.use_latlon:
+            # approximate transforms
+            r_earth = 6371000.0
+            self.y += (dx / r_earth) * (180 / np.pi) / np.cos(self.x * 180/np.pi)
+            self.x += (dy / r_earth) * (180 / np.pi)
+        else:
+            self.x += dx
+            self.y += dy
 
 
 class MissionController():
@@ -65,6 +71,9 @@ class MissionController():
                 
         self._drone.upload_mission_latlon(mission_list)
 
+##########
+# Missions
+##########
 
     def simple_mission(self):
         """
@@ -74,38 +83,44 @@ class MissionController():
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            self._drone.goto(waypoint.x, waypoint.y, waypoint.alt)
-            time.sleep(waypoint.wait_time)
+            self._drone.goto(waypoint.x, waypoint.y, waypoint.alt, use_latlon=waypoint.use_latlon)
+            if waypoint.land:
+                self._drone.land()
+                time.sleep(waypoint.wait_time)
+                self._drone.arm_takeoff(waypoint.alt)
+            else:
+                time.sleep(waypoint.wait_time)
 
-        self._drone.goto(0, 0, self._waypoints[0].alt)
-        self._drone.land()
-
+        self._drone.rtl()
+        self._drone.wait_disarmed()
+        
     def circle_mission(self, radius=10.0, speed=2.0, laps=1, yaw=90):
         """ Run a mission that circles all waypoints """
         self._pre_mission()
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            self._drone.orbit_NEU(waypoint.x, waypoint.y, waypoint.alt, radius, speed=speed, laps=laps, yaw=yaw)
+            self._drone.orbit(waypoint.x, waypoint.y, waypoint.alt, radius, speed=speed, laps=laps, yaw=yaw, use_latlon=waypoint.use_latlon)
             time.sleep(waypoint.wait_time)
 
-        self._drone.goto(0, 0, self._waypoints[0].alt)
-        self._drone.land()
-
+        self._drone.rtl()
+        self._drone.wait_disarmed()
+        
     def spiral_mission(self, end_radius=30.0, start_radius=10, speed=2.0, laps=4):
         """ Run a mission that spirals all waypoints """
         self._pre_mission()
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
-            self._drone.orbit_NEU(waypoint.x, waypoint.y, waypoint.alt, 
+            self._drone.orbit(waypoint.x, waypoint.y, waypoint.alt, 
                                    start_radius, speed=speed, laps=laps, yaw=90,
-                                   spiral_out_per_lap=(end_radius-start_radius)/laps)
+                                   spiral_out_per_lap=(end_radius-start_radius)/laps, 
+                                   use_latlon=waypoint.use_latlon)
             time.sleep(waypoint.wait_time)
 
-        self._drone.goto(0, 0, self._waypoints[0].alt)
-        self._drone.land()
-
+        self._drone.rtl()
+        self._drone.wait_disarmed()
+        
     def fiducial_search_mission(self, detector: FiducialDetector, 
                                 start_radius=5, end_radius=20.0, speed=4.0, 
                                 laps=4, max_dps=10):
@@ -119,7 +134,7 @@ class MissionController():
             # if no marker, just go to waypoint and continue
             if waypoint.aruco_id is None:
                 log.info(f"Going to positional waypoint")
-                self._drone.goto(waypoint.x, waypoint.y, waypoint.alt)
+                self._drone.goto(waypoint.x, waypoint.y, waypoint.alt, use_latlon=waypoint.use_latlon)
                 time.sleep(waypoint.wait_time)
                 continue
 
@@ -129,10 +144,10 @@ class MissionController():
             else:
                 stop_func = lambda: (detector.get_seen(waypoint.aruco_id) is not None or 
                                      detector.get_seen(waypoint.aruco2_id) is not None)
-            not_found = self._drone.orbit_NEU(waypoint.x, waypoint.y, waypoint.alt, 
+            not_found = self._drone.orbit(waypoint.x, waypoint.y, waypoint.alt, 
                                 start_radius, speed=speed, laps=laps, yaw=0,
                                 spiral_out_per_lap=(end_radius-start_radius)/laps,
-                                stop_on_complete=False,
+                                stop_on_complete=False, use_latlon=waypoint.use_latlon,
                                 max_dps=max_dps, stop_function=stop_func)
 
             # capture info about what/where the marker was seen
@@ -172,5 +187,5 @@ class MissionController():
             time.sleep(waypoint.wait_time)
 
         # done with waypoints, go home and land
-        self._drone.goto(0, 0, self._waypoints[0].alt)
-        self._drone.land()
+        self._drone.rtl()
+        self._drone.wait_disarmed()

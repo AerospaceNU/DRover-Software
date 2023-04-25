@@ -234,28 +234,39 @@ class Drone():
         return False
 
     def at_location(self, x, y, z=None, use_latlon=False, tolerance=1.0):
-        """ Returns if we are `tolerance` meters from the provided location"""
+        """ Returns if we are `tolerance` meters from the provided location.
+            Note with lat/lon the alt handling stuff is wonk"""
         if use_latlon:
             x, y = self.latlon_to_NEU(x, y)
         
-        location = self.get_location()
+        xcur, ycur, zcur = self.get_location()
+        log.warning(f"{x:.2f}, {y:.2f}, {z if z is not None else 0:.2f}")
+        log.warning(f"{xcur:.2f}, {ycur:.2f}, {zcur}")
 
         if z is None:
-            return (abs(location[0] - x) < 0.1 and 
-                    abs(location[1] - y) < 0.1)
+            return (abs(xcur - x) < tolerance and 
+                    abs(ycur - y) < tolerance)
         else:
-            return (abs(location[0] - x) < 0.1 and
-                    abs(location[1] - y) < 0.1 and
-                    abs(location[2] - z) < 0.1)
+            return (abs(xcur - x) < tolerance and
+                    abs(ycur - y) < tolerance and
+                    abs(zcur - z) < tolerance)
 
 ##################
 # Data functions
 ##################
 
-    def latlon_to_NEU(self, lat, lon, alt=None):
-        """ Convert a latitude and longitude to meters northing and easting """
+    def latlon_to_NEU(self, lat, lon, alt=None, relative_alt=True):
+        """ Convert a latitude and longitude to meters northing and easting 
+            If relative_alt then altitude is assumed to be relative to the home position"""
         self.wait_global_origin()
-        altitude = 0 if alt is None else alt        
+        
+        if alt is None:
+            altitude = self._global_origin[2]
+        elif relative_alt:
+            altitude = alt+self._global_origin[2]
+        else:
+            altitude = alt
+             
         north, east, down = navpy.lla2ned(lat, lon, altitude, 
                                           self._global_origin[0],
                                           self._global_origin[1],
@@ -333,7 +344,6 @@ class Drone():
             waypoints.insert(0, (cur_lat, cur_lon, 
                                  self._global_origin[2]+waypoints[0][2]))
 
-        log.warning(f"{len(waypoints)}")
         self.connection.waypoint_count_send(len(waypoints))
         for i in range(len(waypoints)):
             msg = self.connection.recv_match(type=['MISSION_REQUEST'], blocking=True)
@@ -394,6 +404,27 @@ class Drone():
                 mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
                 wait_ack=True)
 
+    def param_set(self, parm_name, parm_value, param_type=None, retries=3):
+        """ Wrapper for parameter send function"""
+
+        for _ in range(retries):
+            self.connection.param_set_send(parm_name, parm_value, param_type)
+            msg = self.connection.recv_match(type='PARAM_VALUE',
+                                             blocking=True,
+                                             condition=f'PARAM_VALUE.param_id=="{parm_name}"',
+                                             timeout=0.5)
+
+            if msg is not None:
+                return True
+
+        log.error(f"Failed to set {parm_name} to {parm_value}")
+        return False
+
+
+##################
+# Motion functions
+##################
+
     def arm_takeoff(self, altitude=2.5, blocking=True):
         """ Arm the drone """
 
@@ -438,27 +469,6 @@ class Drone():
 
         return True
 
-    def param_set(self, parm_name, parm_value, param_type=None, retries=3):
-        """ Wrapper for parameter send function"""
-
-        for _ in range(retries):
-            self.connection.param_set_send(parm_name, parm_value, param_type)
-            msg = self.connection.recv_match(type='PARAM_VALUE',
-                                             blocking=True,
-                                             condition=f'PARAM_VALUE.param_id=="{parm_name}"',
-                                             timeout=0.5)
-
-            if msg is not None:
-                return True
-
-        log.error(f"Failed to set {parm_name} to {parm_value}")
-        return False
-
-
-##################
-# Motion functions
-##################
-
     def land(self, blocking=True):
         """ Land the drone """
 
@@ -482,10 +492,10 @@ class Drone():
             if msg.relative_alt / 1000 < 0.1:
                 break
 
-        log.info("Drone landed")
+        log.info("Touchdown")
         return True
 
-    def goto(self, x, y, z, use_latlon=False, above_terrain=False,
+    def goto(self, x, y, z, use_latlon=False, above_terrain=True,
                  relative=False, yaw=None, yaw_rate=None, 
                  blocking=True, stop_function=None):
         """ Fly to a provided location
@@ -511,7 +521,7 @@ class Drone():
             return False
 
         if blocking:
-            log.info(f"Going to NEU {'relative' if relative else 'position'}: {x:.2f}, {y:.2f}, {z:.2f}")
+            log.info(f"Going to {'LLA' if use_latlon else 'NEU'} {'relative' if relative else 'position'}: {x:.2f}, {y:.2f}, {z:.2f}")
 
         # if relative, convert to absolute target position
         # this was done rather than using the MAV_FRAME_LOCAL_OFFSET_NED frame
@@ -544,9 +554,10 @@ class Drone():
                 self.connection.target_system,  # target_system
                 self.connection.target_component,  # target_component
                 frame,  # frame
-                x,  # x
-                y,  # y
-                z,  # z
+                type_mask, # type mask
+                int(x*1e7),  # lat
+                int(y*1e7),  # lon
+                z,  # alt
                 0,  # vx
                 0,  # vy
                 0,  # vz
@@ -555,7 +566,7 @@ class Drone():
                 0,  # afz
                 yaw if yaw is not None else 0,  # yaw
                 yaw_rate if yaw_rate is not None else 0)  # yaw_rate
-                
+
         else:
             # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
             self.connection.mav.set_position_target_local_ned_send(
@@ -580,8 +591,9 @@ class Drone():
             return True
 
         # wait for the drone to reach the target position
-        while not self.at_location(x, y, z, use_latlon=use_latlon):
+        while not self.at_location(x, y, use_latlon=use_latlon):
             time.sleep(0.001)
+            time.sleep(0.2)
             if stop_function is not None and stop_function():
                 log.debug("Stopped heading to position due to stop function")
                 self.stop()
@@ -641,13 +653,18 @@ class Drone():
 
         self.param_set("WPNAV_ACCEL", self._max_accel)
 
-    def orbit_NEU(self, north, east, up, radius, yaw=0.0,
-                  laps=1.0, speed=1.0, ccw=False, spiral_out_per_lap=0.0, 
-                  stop_on_complete=True, max_dps=10, stop_function=None):
+    def orbit(self, x, y, up, radius, yaw=0.0, use_latlon=False,
+              laps=1.0, speed=1.0, ccw=False, spiral_out_per_lap=0.0, 
+              stop_on_complete=True, max_dps=10, stop_function=None):
         """ Perform an orbit around provided point (blocking, yaw in degrees).
             Returns true if the orbit was completed, false if it was stopped.
         """
-
+        # convert to NEU
+        if use_latlon:
+            north, east = self.latlon_to_NEU(x, y)
+        else:
+            north, east = x, y
+            
         location = self.get_location()[:2]
 
         # calculate closest point from the drone on the circle
@@ -736,6 +753,6 @@ class Drone():
             return False
         
         else:
-            return self.orbit_NEU(*self._prev_orbit_args)
+            return self.orbit(*self._prev_orbit_args)
             
 

@@ -15,3 +15,22 @@ The `drover` folder is set up in the format of a python module and includes
 `__init__.py` files etc ([python module reference](https://docs.python.org/3/tutorial/modules.html)).
 When a packages is imported in a relative manner, you will see a period in 
 front of its name (ex `import .camera`). 
+
+## Creating a service on the RPi
+We want to run `drover_startup.sh` on boot, so we shall create a unix service.
+1. Create file `/etc/systemd/system/drover.service` with the following:
+```
+[Unit]
+Description=Drover service.
+
+[Service]
+ExecStart=/bin/bash /usr/sbin/drover_startup.sh
+
+[Install]
+WantedBy=multi-user.target
+```
+2. Reload stuff with `systemctl daemon-reload` 
+3. Enable it: `systemctl enable drover.service`
+Also of usefulness:
+- `systemctl restart drover.service`
+- `systemctl status drover.service`

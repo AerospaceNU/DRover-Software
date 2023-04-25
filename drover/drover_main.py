@@ -18,20 +18,28 @@ log.add(sys.stderr, level="DEBUG", format=logger_format)
 
 def main(drone: Drone):
     # define waypoints
-    waypoints_NEU = [
+    # waypoints = [
+    #     # Waypoint(  0,  40, 2, wait_time=2),
+    #     Waypoint( 30,  60, 2, aruco_id=1, wait_time=2),
+    #     Waypoint( 60,  20, 2, aruco_id=2, wait_time=2),
+    #     Waypoint( 60,  -50, 2, aruco_id=3, wait_time=2),
+    #     Waypoint(-40,  -40, 2, aruco_id=4, aruco2_id=5, wait_time=2)
+    # ]
+    waypoints = [
         # Waypoint(  0,  40, 2, wait_time=2),
-        Waypoint( 30,  60, 2, aruco_id=1, wait_time=2),
-        Waypoint( 60,  20, 2, aruco_id=2, wait_time=2),
-        Waypoint( 60,  -50, 2, aruco_id=3, wait_time=2),
-        Waypoint(-40,  -40, 2, aruco_id=4, aruco2_id=5, wait_time=2)
+        Waypoint(-35.36299172424103, 149.16589752767177, 2, use_latlon=True, aruco_id=1, wait_time=2),
+        Waypoint(-35.36272135187389, 149.16545744182363, 2, use_latlon=True, aruco_id=2, wait_time=2),
+        Waypoint(-35.36272135082222, 149.16468729544093, 2, use_latlon=True, aruco_id=3, wait_time=2),
+        Waypoint(-35.36362259779146, 149.16479731146183, 2, use_latlon=True, aruco_id=4, aruco2_id=5, wait_time=2)
     ]
+
     # add random offsets
-    # random.seed(2)
-    # for i, wp in enumerate(waypoints_NEU):
-    #     wp.move_random(i*5)
+    random.seed(2)
+    for i, wp in enumerate(waypoints):
+        wp.move_random(i*5)
 
     # init mission controller
-    mc = MissionController(drone, waypoints_NEU)
+    mc = MissionController(drone, waypoints)
     detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
 
     # run mission
