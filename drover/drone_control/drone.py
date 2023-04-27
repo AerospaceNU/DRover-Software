@@ -240,8 +240,6 @@ class Drone():
             x, y = self.latlon_to_NEU(x, y)
         
         xcur, ycur, zcur = self.get_location()
-        log.warning(f"{x:.2f}, {y:.2f}, {z if z is not None else 0:.2f}")
-        log.warning(f"{xcur:.2f}, {ycur:.2f}, {zcur}")
 
         if z is None:
             return (abs(xcur - x) < tolerance and 
@@ -455,6 +453,7 @@ class Drone():
                             wait_ack=True)
 
         if not taking_off:
+            # TODO handle if already in air?
             log.error("Failed to takeoff")
             return False
 
@@ -592,8 +591,7 @@ class Drone():
 
         # wait for the drone to reach the target position
         while not self.at_location(x, y, use_latlon=use_latlon):
-            time.sleep(0.001)
-            time.sleep(0.2)
+            time.sleep(0.01)
             if stop_function is not None and stop_function():
                 log.debug("Stopped heading to position due to stop function")
                 self.stop()

@@ -18,13 +18,6 @@ log.add(sys.stderr, level="DEBUG", format=logger_format)
 
 def main(drone: Drone):
     # define waypoints
-    # waypoints = [
-    #     # Waypoint(  0,  40, 2, wait_time=2),
-    #     Waypoint( 30,  60, 2, aruco_id=1, wait_time=2),
-    #     Waypoint( 60,  20, 2, aruco_id=2, wait_time=2),
-    #     Waypoint( 60,  -50, 2, aruco_id=3, wait_time=2),
-    #     Waypoint(-40,  -40, 2, aruco_id=4, aruco2_id=5, wait_time=2)
-    # ]
     waypoints = [
         # Waypoint(  0,  40, 2, wait_time=2),
         Waypoint(-35.36299172424103, 149.16589752767177, 2, use_latlon=True, aruco_id=1, wait_time=2),
@@ -36,7 +29,7 @@ def main(drone: Drone):
     # add random offsets
     random.seed(2)
     for i, wp in enumerate(waypoints):
-        wp.move_random(i*5)
+        wp.move_random(i*10)
 
     # init mission controller
     mc = MissionController(drone, waypoints)
@@ -46,7 +39,7 @@ def main(drone: Drone):
     # mc.simple_mission()
     # mc.circle_mission(radius=10.0, speed=1.0)
     # mc.spiral_mission()
-    mc.fiducial_search_mission(detector, end_radius=40, laps=4, speed=4, max_dps=10)
+    mc.fiducial_search_mission(detector, end_radius=40, laps=4, speed=4, max_dps=10, search_yaw=180-30)
 
 if __name__ == "__main__":
     drone = Drone()
