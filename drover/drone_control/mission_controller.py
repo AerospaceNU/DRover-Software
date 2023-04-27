@@ -113,9 +113,8 @@ class MissionController():
         ne_displacement = np.array([marker_n-location[0], 
                                     marker_e-location[1]])
         dist_away = np.linalg.norm(ne_displacement)
-        backtrack_adjustment = (ne_displacement/dist_away) * target_dist_away
+        backtrack_adjustment = (ne_displacement/dist_away) * (dist_away-target_dist_away)
         log.debug(f"Saw marker {dist_away:.2f}m away, backtracking...")
-        log.warning(f"{ne_displacement}")
         
         # fly back to close to the marker and point towards it
         self._drone.stop()

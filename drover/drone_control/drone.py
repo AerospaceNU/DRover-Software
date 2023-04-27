@@ -135,7 +135,7 @@ class Drone():
             param6,
             param7)
 
-        log.debug(f"Sent command {command} to drone")
+        # log.debug(f"Sent command {command} to drone")
 
         if wait_ack:
             ack = self.connection.recv_match(
@@ -143,10 +143,10 @@ class Drone():
                                 condition=f'COMMAND_ACK.command=={command}',
                                 blocking=True, timeout=1)
             if ack is None:
-                log.debug(f"Failed to receive ack for command {command}")
+                log.warning(f"Failed to receive ack for command {command}")
                 return False
-            log.debug(f"Received ack for command {command} "
-                      f"with result {ack.result}")
+            # log.debug(f"Received ack for command {command} "
+            #           f"with result {ack.result}")
             return ack.result == mavlink.MAV_RESULT_ACCEPTED
 
         return True
@@ -640,16 +640,19 @@ class Drone():
             yaw if yaw is not None else 0,  # yaw
             yaw_rate if yaw_rate is not None else 0)  # yaw_rate
 
-    def stop(self, blocking=True, accel=100):
+    def stop(self, blocking=True, accel=None):
         """ Hard stop the drone's movement (accel cm/s/s) """
-        self.param_set("WPNAV_ACCEL", accel)
+        if accel is not None:
+            self.param_set("WPNAV_ACCEL", accel)
+            
         self.velocity_NEU(0, 0, 0, yaw_rate=0)
 
         if blocking:
             while self.is_moving():
                 time.sleep(0.001)
 
-        self.param_set("WPNAV_ACCEL", self._max_accel)
+        if accel is not None:
+            self.param_set("WPNAV_ACCEL", self._max_accel)
 
     def orbit(self, x, y, up, radius, yaw=0.0, use_latlon=False,
               laps=1.0, speed=1.0, ccw=False, spiral_out_per_lap=0.0, 
@@ -675,7 +678,6 @@ class Drone():
         # fly to circle if not already on it
         # TODO set yaw here too so we dont double back if in the circle
         if np.sqrt(np.sum((location-closest_start_point)**2)) > 1:
-            log.debug(f"Flying to closest point on circle ({location[0]:.2f}, {location[1]:.2f}) -> ({closest_start_point[0]:.2f}, {closest_start_point[1]:.2f})")
             ret = self.goto(*closest_start_point, up, stop_function=stop_function)
             if not ret:
                 self._prev_orbit_args = (north, east, up, radius, yaw, laps, 
