@@ -60,6 +60,8 @@ class MissionController():
         """ Called at the beginning of every mission """
         if self._use_home_rally_point:
             self._drone.set_home_rally_point()
+            # force to only RTL to rally point(s)
+            self._drone.param_set("RALLY_INCL_HOME", 0)
         
         # Upload waypoints as a mission for GCS visualization purposes
         mission_list = []
@@ -81,7 +83,8 @@ class MissionController():
             time.sleep(waypoint.wait_time)        
             self._drone.arm_takeoff(waypoint.alt)
 
-    def search_for_arucos(self, detector, waypoint, start_radius, end_radius, speed, laps, max_dps, yaw):
+    def search_for_arucos(self, detector, waypoint, start_radius, end_radius, 
+                          speed, laps, max_dps, yaw, backtrack_dist=8):
         """ Search for aruco markers"""
         # determine if we are searching for a single marker or a pair
         if waypoint.aruco2_id is None:
@@ -108,12 +111,11 @@ class MissionController():
             
         # calculate a location a bit closer to the seen marker 
         # so we ensure we have a good view of it
-        target_dist_away = 8
         marker_n, marker_e, alt = self._drone.rel_to_abs_NEU(latest_marker.location[2],latest_marker.location[0], 0)
         ne_displacement = np.array([marker_n-location[0], 
                                     marker_e-location[1]])
         dist_away = np.linalg.norm(ne_displacement)
-        backtrack_adjustment = (ne_displacement/dist_away) * (dist_away-target_dist_away)
+        backtrack_adjustment = (ne_displacement/dist_away) * (dist_away-backtrack_dist)
         log.debug(f"Saw marker {dist_away:.2f}m away, backtracking...")
         
         # fly back to close to the marker and point towards it

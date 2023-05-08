@@ -7,7 +7,7 @@ from threading import Thread
 from typing import Dict, Union
 from loguru import logger as log
 from pymavlink import mavutil
-from pymavlink.dialects.v10 import ardupilotmega as mavlink
+from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 # mavutil reference: https://mavlink.io/en/mavgen_python
 # MAVLink messages: https://mavlink.io/en/messages/common.html
@@ -39,7 +39,8 @@ class Drone():
                                                   connection_string,
                                                   baud=baudrate,
                                                   dialect="ardupilotmega",
-                                                  autoreconnect=True)
+                                                  autoreconnect=True,
+                                                  source_component=mavlink.MAV_COMP_ID_ONBOARD_COMPUTER)
         self.connection.message_hooks.append(self._mav_msg_handler)
 
         # start thread for sending heartbeats
@@ -124,7 +125,7 @@ class Drone():
 
         self.connection.mav.command_long_send(
             self.connection.target_system,  # target_system
-            self.connection.target_component,  # target_component
+            mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
             command,  # command
             0,  # confirmation
             param1,
@@ -170,7 +171,7 @@ class Drone():
         # run `set streamrate -1` to disable in mavproxy, and look in GCS settings
         self.connection.mav.request_data_stream_send(
             self.connection.target_system,  # target_system
-            self.connection.target_component,  # target_component
+            mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
             stream, # stream
             hz,     # rate
             1)      # start/stop
@@ -349,7 +350,7 @@ class Drone():
             
             self.connection.mav.mission_item_int_send(
                 self.connection.target_system,  # target_system
-                self.connection.target_component,  # target_component
+                mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 msg.seq, # seq
                 frame, # frame
                 mavlink.MAV_CMD_NAV_WAYPOINT,
@@ -363,28 +364,52 @@ class Drone():
 
         log.info("Waypoints uploaded")
 
+    def upload_rally_latlon(self, rallypoints: list[tuple[float, float,float]]):
+        """ Upload a mission to the drone in the format of a list of (lat, lon, alt)"""
+ 
+        # first rallypoint must be home/start location of sorts
+        self.wait_global_origin()        
+        cur_lat, cur_lon, cur_alt = self.get_location(use_latlon=True)
+
+        # Tell autopilot we have rally points to upload
+        self.connection.mav.mission_count_send(
+                self.connection.target_system,  # target_system
+                mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
+                len(rallypoints), # count
+                mavlink.MAV_MISSION_TYPE_RALLY) # mission_type
+                                              
+        # Send rallypoints
+        for i in range(len(rallypoints)):
+            msg = self.connection.recv_match(type=['MISSION_REQUEST'], blocking=True)
+            log.debug(f"Sending rallypoint {msg.seq}...")
+            
+            self.connection.mav.mission_item_int_send(
+                self.connection.target_system,  # target_system
+                mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
+                msg.seq, # seq
+                mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, # frame
+                mavlink.MAV_CMD_NAV_RALLY_POINT,
+                int(False), # current
+                int(True), # autocontinue
+                0, 0, 0, 0, # param1-4
+                int(rallypoints[msg.seq][0]*1e7),
+                int(rallypoints[msg.seq][1]*1e7),
+                rallypoints[msg.seq][2],
+                mavlink.MAV_MISSION_TYPE_RALLY)
+
+        log.info("Rallypoints uploaded")
+
     def set_home_rally_point(self):
         """ Sets a rally point at the current location and sets RALLY_INCL_HOME to false """
-        self.add_rally_point()
+        position = self.get_location(use_latlon=True)
+
+        self.upload_rally_latlon([position])
         # https://ardupilot.org/copter/docs/parameters.html#rally-incl-home-rally-include-home
         self.param_set("RALLY_INCL_HOME", 0)
 
     def clear_mission(self):
         """ Clear all mission items on the drone """
         self.connection.waypoint_clear_all_send()
-
-    def add_rally_point(self, lat=None, lon=None, alt=None, current_location=True):
-        """ Adds a rally point either at a specified location or current location"""
-        if not current_location and None in [lat, lon, alt]:
-            log.error("None passed to add_rally_point")
-            
-        if current_location:
-            lat, lon, alt = self.get_location(use_latlon=True)
-        
-        self.send_command_long(mavlink.MAVLINK_MSG_ID_RALLY_POINT, 
-                               param5=lat,
-                               param6=lon,
-                               param7=alt)
 
     def set_guided_mode(self):
         """ Set the drone to guided mode """
@@ -551,7 +576,7 @@ class Drone():
             self.connection.mav.set_position_target_global_int_send(
                 int((time.time()-self._start_time)*1000),  # time_boot_ms
                 self.connection.target_system,  # target_system
-                self.connection.target_component,  # target_component
+                mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 frame,  # frame
                 type_mask, # type mask
                 int(x*1e7),  # lat
@@ -571,7 +596,7 @@ class Drone():
             self.connection.mav.set_position_target_local_ned_send(
                 int((time.time()-self._start_time)*1000),  # time_boot_ms
                 self.connection.target_system,  # target_system
-                self.connection.target_component,  # target_component
+                mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 mavlink.MAV_FRAME_LOCAL_NED,  # frame
                 type_mask,  # type_mask
                 x,  # x
@@ -625,7 +650,7 @@ class Drone():
         self.connection.mav.set_position_target_local_ned_send(
             int((time.time()-self._start_time)*1000),  # time_boot_ms
             self.connection.target_system,  # target_system
-            self.connection.target_component,  # target_component
+            mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
             frame,  # frame
             type_mask,  # type_mask 
             0,  # x
