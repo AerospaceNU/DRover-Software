@@ -18,7 +18,9 @@ setup(
         'opencv-contrib-python (>=4.7.0.68)',
         'pymavlink',
         'loguru',
-        'navpy'
+        'navpy',
+        'rpi_ws281x',
+        'adafruit-circuitpython-neopixel'
     ],
     scripts=[
         'drover/drover_main.py',

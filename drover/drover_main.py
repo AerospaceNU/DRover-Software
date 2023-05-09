@@ -3,7 +3,7 @@
 import sys
 import random
 from loguru import logger as log
-from drover import Drone, MissionController, Waypoint, FiducialDetector, SimCamera
+from drover import Drone, MissionController, Waypoint, FiducialDetector, SimCamera, DRoverLEDs
 
 
 # init pretty logging
@@ -31,10 +31,11 @@ def main(drone: Drone):
     for i, wp in enumerate(waypoints):
         wp.move_random(i*10)
 
-    # init mission controller
+    # init objects
     mc = MissionController(drone, waypoints)
     detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
-
+    leds = DRoverLEDs(drone)
+    
     # run mission
     # mc.simple_mission()
     # mc.circle_mission(radius=10.0, speed=1.0)

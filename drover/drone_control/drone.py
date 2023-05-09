@@ -4,15 +4,23 @@ import time
 import navpy
 import numpy as np
 from threading import Thread
+from pymavlink import mavutil
 from typing import Dict, Union
 from loguru import logger as log
-from pymavlink import mavutil
+from dataclasses import dataclass
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 # mavutil reference: https://mavlink.io/en/mavgen_python
 # MAVLink messages: https://mavlink.io/en/messages/common.html
 # ArduPilot: https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
 
+@dataclass
+class DroneState():
+    last_vehicle_heartbeat = 0 # epoch of last heartbeat
+    global_origin = None # (lat, lon, alt)
+    gps_quality = float('inf') # HDOP, < 2.0 is good
+    armed = False
+    mode = "UNKNOWN" # mavutil.mode_mapping_apm
 
 class Drone():
     def __init__(self,
@@ -23,25 +31,24 @@ class Drone():
         """Construct a new Drone object and connect to a mavlink sink/source"""
 
         # init variables
-        self._state = mavlink.MAV_STATE_UNINIT
+        self._mav_state = mavlink.MAV_STATE_UNINIT
+        self._state = DroneState()
         self._start_time = time.time()
         self._max_speed = max_speed
         self._max_accel = max_accel
         self._prev_orbit_args = None 
-        self._last_vehicle_heartbeat = 0
-        self._global_origin = None
-        self._vehicle_status: mavlink.MAVLink_sys_status_message = None
+        self._mav_callbacks = []
 
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
         log.info(f"Connecting to drone on {connection_string}")
-        self.connection: mavutil.mavfile = mavutil.mavlink_connection(
+        self.mav_util: mavutil.mavfile = mavutil.mavlink_connection(
                                                   connection_string,
                                                   baud=baudrate,
                                                   dialect="ardupilotmega",
                                                   autoreconnect=True,
                                                   source_component=mavlink.MAV_COMP_ID_ONBOARD_COMPUTER)
-        self.connection.message_hooks.append(self._mav_msg_handler)
+        self.mav_util.message_hooks.append(self._mav_msg_handler)
 
         # start thread for sending heartbeats
         self._main_thread = Thread(target=self._run, daemon=True)
@@ -49,8 +56,8 @@ class Drone():
 
         # wait for a heartbeat from the drone (aka it is connected)
         self.wait_heartbeat()
-        log.info(f"Drone connected (system {self.connection.target_system} "
-                 f"component {self.connection.target_component})")
+        log.info(f"Drone connected (system {self.mav_util.target_system} "
+                 f"component {self.mav_util.target_component})")
 
         # set stream rates to be faster
         self.set_stream_rate(   4, mavlink.MAV_DATA_STREAM_ALL)
@@ -65,7 +72,7 @@ class Drone():
         self.clear_mission()
 
         # set the system status to active
-        self._state = mavlink.MAV_STATE_ACTIVE
+        self._mav_state = mavlink.MAV_STATE_ACTIVE
 
     def _run(self):
         """ Continuously send heartbeats to the drone at 2Hz """
@@ -75,12 +82,12 @@ class Drone():
         # Oops - Ian
 
         while True:
-            self.connection.mav.heartbeat_send(
+            self.mav_util.mav.heartbeat_send(
                 mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
                 mavlink.MAV_AUTOPILOT_INVALID,
                 0,
                 0,
-                self._state)
+                self._mav_state)
 
             time.sleep(0.5)
 
@@ -91,21 +98,37 @@ class Drone():
         
         type = msg.get_type()
         if type == "HEARTBEAT":
-            self._last_vehicle_heartbeat = time.time()
+            self._state.last_vehicle_heartbeat = time.time()
+            self._state.armed = msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+            if msg.custom_mode in mavutil.mode_mapping_acm:
+                self._state.mode = mavutil.mode_mapping_acm[msg.custom_mode]
+            else:
+                self._state.mode = "UNKNOWN"
+                
         elif type == "SYS_STATUS":
-            self._vehicle_status = msg
-            # TODO handle leaving guided mode
+            self._state.healthy = msg.onboard_control_sensors_present & mavlink.MAV_SYS_STATUS_PREARM_CHECK
+                            
         elif type == "GPS_GLOBAL_ORIGIN":
-            self._global_origin = (msg.latitude/1e7, msg.longitude/1e7, msg.altitude/1e3)                
+            self._state.global_origin = (msg.latitude/1e7, msg.longitude/1e7, msg.altitude/1e3) 
+                           
+        elif type == "GPS_RAW_INT":
+            self._state.gps_quality = msg.eph
 
+        for msg, handler in self._mav_callbacks:
+            if type == msg:
+                handler(msg)
         
 ###################
 # Mavlink functions
 ###################
 
+    def add_mavlink_callback(self, msg_name, handler_func):
+        """" Registers a function to be called with new mavlink messages of type msg_name """
+        self._mav_callbacks.append((msg_name, handler_func))
+
     def drain_mavlink_buffer(self):
         """ Drain the mavlink buffer """
-        while self.connection.recv_match() is not None:
+        while self.mav_util.recv_match() is not None:
             pass
         log.debug("Drained mavlink buffer")
 
@@ -114,7 +137,7 @@ class Drone():
         self.drain_mavlink_buffer()
 
         for _ in range(n):
-            print(self.connection.recv_match(blocking=True).to_dict())
+            print(self.mav_util.recv_match(blocking=True).to_dict())
 
     def send_command_long(self, command, param1=0,
                           param2=0, param3=0,
@@ -123,8 +146,8 @@ class Drone():
                           wait_ack=False):
         """ Send a command to the drone """
 
-        self.connection.mav.command_long_send(
-            self.connection.target_system,  # target_system
+        self.mav_util.mav.command_long_send(
+            self.mav_util.target_system,  # target_system
             mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
             command,  # command
             0,  # confirmation
@@ -139,7 +162,7 @@ class Drone():
         # log.debug(f"Sent command {command} to drone")
 
         if wait_ack:
-            ack = self.connection.recv_match(
+            ack = self.mav_util.recv_match(
                                 type='COMMAND_ACK',
                                 condition=f'COMMAND_ACK.command=={command}',
                                 blocking=True, timeout=1)
@@ -154,13 +177,13 @@ class Drone():
 
     def set_state(self, state):
         """ Set the state of the drone """
-        self._state = state
-        self.connection.mav.heartbeat_send(
+        self._mav_state = state
+        self.mav_util.mav.heartbeat_send(
             mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
             mavlink.MAV_AUTOPILOT_INVALID,
             0,
             0,
-            self._state)
+            self._mav_state)
 
         log.info("Drone state set to " + str(state))
 
@@ -169,8 +192,8 @@ class Drone():
         # https://ardupilot.org/dev/docs/mavlink-requesting-data.html
         # NOTE: mavproxy and the GCS will override this
         # run `set streamrate -1` to disable in mavproxy, and look in GCS settings
-        self.connection.mav.request_data_stream_send(
-            self.connection.target_system,  # target_system
+        self.mav_util.mav.request_data_stream_send(
+            self.mav_util.target_system,  # target_system
             mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
             stream, # stream
             hz,     # rate
@@ -191,22 +214,22 @@ class Drone():
 
     def wait_global_origin(self):
         """ Wait for the global origin to be set"""
-        if self._global_origin is None:
+        if self._state.global_origin is None:
             log.debug("Waiting for global origin")
-            self.connection.recv_match(type='GPS_GLOBAL_ORIGIN', blocking=True)
+            self.mav_util.recv_match(type='GPS_GLOBAL_ORIGIN', blocking=True)
 
     def wait_heartbeat(self):
         """ Wait for a heartbeat from the drone """
-        self.connection.recv_match(type='HEARTBEAT', blocking=True)
+        self.mav_util.recv_match(type='HEARTBEAT', blocking=True)
 
     def wait_armable(self):
         """ Wait for the drone to be armable """
         # wait for pre-arm checks to pass and for a GPS fix
         # https://mavlink.io/en/messages/common.html#SYS_STATUS
-        self.connection.wait_gps_fix()
+        self.mav_util.wait_gps_fix()
         sys_good_health = False
         while not sys_good_health:
-            msg = self.connection.recv_match(type='SYS_STATUS', blocking=True)
+            msg = self.mav_util.recv_match(type='SYS_STATUS', blocking=True)
             sys_good_health = (msg.onboard_control_sensors_present
                                & mavlink.MAV_SYS_STATUS_PREARM_CHECK)
 
@@ -214,25 +237,11 @@ class Drone():
         """ Wait for the drone to be disarmed """
         # check the armed bit in the heartbeat
         # https://mavlink.io/en/messages/common.html#HEARTBEAT
-        while (self.connection.recv_match(
+        while (self.mav_util.recv_match(
                 type='HEARTBEAT',
                 blocking=True).base_mode
                 & mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
             pass
-
-    def is_moving(self, min_speed=5, min_yawspeed=0.1):
-        """ Checks if the drone is moving (speed is cm/s, rot in rad/s) """
-        pos_msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
-                                            blocking=True)
-
-        attitude_msg = self.connection.recv_match(type='ATTITUDE', blocking=True)
-
-        if (abs(pos_msg.vx) > min_speed or 
-            abs(pos_msg.vy) > min_speed or 
-            abs(pos_msg.vz) > min_speed or
-            abs(attitude_msg.yawspeed) > min_yawspeed):
-            return True
-        return False
 
     def at_location(self, x, y, z=None, use_latlon=False, tolerance=1.0):
         """ Returns if we are `tolerance` meters from the provided location.
@@ -250,6 +259,23 @@ class Drone():
                     abs(ycur - y) < tolerance and
                     abs(zcur - z) < tolerance)
 
+    def is_moving(self, min_speed=5, min_yawspeed=0.1):
+        """ Checks if the drone is moving (speed is cm/s, rot in rad/s) """
+        pos_msg = self.mav_util.recv_match(type='GLOBAL_POSITION_INT',
+                                            blocking=True)
+
+        attitude_msg = self.mav_util.recv_match(type='ATTITUDE', blocking=True)
+
+        if (abs(pos_msg.vx) > min_speed or 
+            abs(pos_msg.vy) > min_speed or 
+            abs(pos_msg.vz) > min_speed or
+            abs(attitude_msg.yawspeed) > min_yawspeed):
+            return True
+        return False
+
+    def state(self):
+        return self._state
+
 ##################
 # Data functions
 ##################
@@ -260,16 +286,16 @@ class Drone():
         self.wait_global_origin()
         
         if alt is None:
-            altitude = self._global_origin[2]
+            altitude = self._state.global_origin[2]
         elif relative_alt:
-            altitude = alt+self._global_origin[2]
+            altitude = alt+self._state.global_origin[2]
         else:
             altitude = alt
              
         north, east, down = navpy.lla2ned(lat, lon, altitude, 
-                                          self._global_origin[0],
-                                          self._global_origin[1],
-                                          self._global_origin[2])
+                                          self._state.global_origin[0],
+                                          self._state.global_origin[1],
+                                          self._state.global_origin[2])
         if alt is None:
             return north, east
         else:
@@ -280,9 +306,9 @@ class Drone():
         self.wait_global_origin()
         altitude = 0 if alt is None else alt
         lat, lon, altitude = navpy.ned2lla((north, east, -altitude), 
-                                           self._global_origin[0],
-                                           self._global_origin[1],
-                                           self._global_origin[2])
+                                           self._state.global_origin[0],
+                                           self._state.global_origin[1],
+                                           self._state.global_origin[2])
         if alt is None:
             return lat, lon
         else:
@@ -291,20 +317,20 @@ class Drone():
     def get_location(self, use_latlon=False):
         """ Get current location in NEU frame (north, east, up) or (lat, lon, MSL) """
         if not use_latlon:
-            location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+            location_msg = self.mav_util.recv_match(type='LOCAL_POSITION_NED', blocking=True)
             return np.array([location_msg.x, location_msg.y, -location_msg.z])
 
-        location_msg = self.connection.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        location_msg = self.mav_util.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
         return np.array([location_msg.lat/1e7, location_msg.lon/1e7, location_msg.alt/1e3])
     
     def get_velocity_NEU(self):
         """ Get current velocity in NEU frame (north, east, up) """
-        location_msg = self.connection.recv_match(type='LOCAL_POSITION_NED', blocking=True)
+        location_msg = self.mav_util.recv_match(type='LOCAL_POSITION_NED', blocking=True)
         return np.array([location_msg.vx, location_msg.vy, -location_msg.vz])
 
     def get_attitude(self):
         """ Get current attitude in euler angles (roll, pitch, yaw) """
-        attitude_msg = self.connection.recv_match(type='ATTITUDE', blocking=True)
+        attitude_msg = self.mav_util.recv_match(type='ATTITUDE', blocking=True)
         return np.array([attitude_msg.roll, attitude_msg.pitch, attitude_msg.yaw])
 
     def rel_to_abs_NEU(self, north, east, up, use_heading=True):
@@ -337,19 +363,19 @@ class Drone():
         if terrain_alt:
             frame = mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT_INT
             waypoints.insert(0, (cur_lat, cur_lon, 
-                                 (cur_alt-self._global_origin[2])+waypoints[0][2]))
+                                 (cur_alt-self._state.global_origin[2])+waypoints[0][2]))
         else:
             frame = mavlink.MAV_FRAME_GLOBAL_INT
             waypoints.insert(0, (cur_lat, cur_lon, 
-                                 self._global_origin[2]+waypoints[0][2]))
+                                 self._state.global_origin[2]+waypoints[0][2]))
 
-        self.connection.waypoint_count_send(len(waypoints))
+        self.mav_util.waypoint_count_send(len(waypoints))
         for i in range(len(waypoints)):
-            msg = self.connection.recv_match(type=['MISSION_REQUEST'], blocking=True)
+            msg = self.mav_util.recv_match(type=['MISSION_REQUEST'], blocking=True)
             log.debug(f"Sending waypoint {msg.seq}...")
             
-            self.connection.mav.mission_item_int_send(
-                self.connection.target_system,  # target_system
+            self.mav_util.mav.mission_item_int_send(
+                self.mav_util.target_system,  # target_system
                 mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 msg.seq, # seq
                 frame, # frame
@@ -372,19 +398,19 @@ class Drone():
         cur_lat, cur_lon, cur_alt = self.get_location(use_latlon=True)
 
         # Tell autopilot we have rally points to upload
-        self.connection.mav.mission_count_send(
-                self.connection.target_system,  # target_system
+        self.mav_util.mav.mission_count_send(
+                self.mav_util.target_system,  # target_system
                 mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 len(rallypoints), # count
                 mavlink.MAV_MISSION_TYPE_RALLY) # mission_type
                                               
         # Send rallypoints
         for i in range(len(rallypoints)):
-            msg = self.connection.recv_match(type=['MISSION_REQUEST'], blocking=True)
+            msg = self.mav_util.recv_match(type=['MISSION_REQUEST'], blocking=True)
             log.debug(f"Sending rallypoint {msg.seq}...")
             
-            self.connection.mav.mission_item_int_send(
-                self.connection.target_system,  # target_system
+            self.mav_util.mav.mission_item_int_send(
+                self.mav_util.target_system,  # target_system
                 mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 msg.seq, # seq
                 mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, # frame
@@ -409,7 +435,7 @@ class Drone():
 
     def clear_mission(self):
         """ Clear all mission items on the drone """
-        self.connection.waypoint_clear_all_send()
+        self.mav_util.waypoint_clear_all_send()
 
     def set_guided_mode(self):
         """ Set the drone to guided mode """
@@ -431,8 +457,8 @@ class Drone():
         """ Wrapper for parameter send function"""
 
         for _ in range(retries):
-            self.connection.param_set_send(parm_name, parm_value, param_type)
-            msg = self.connection.recv_match(type='PARAM_VALUE',
+            self.mav_util.param_set_send(parm_name, parm_value, param_type)
+            msg = self.mav_util.recv_match(type='PARAM_VALUE',
                                              blocking=True,
                                              condition=f'PARAM_VALUE.param_id=="{parm_name}"',
                                              timeout=0.5)
@@ -485,7 +511,7 @@ class Drone():
         if blocking:
             # wait for the drone to reach the target altitude
             while True:
-                msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
+                msg = self.mav_util.recv_match(type='GLOBAL_POSITION_INT',
                                                  blocking=True)
                 if msg.relative_alt / 1000 > altitude * 0.95:
                     break
@@ -511,7 +537,7 @@ class Drone():
 
         log.info("Landing drone")
         while True:
-            msg = self.connection.recv_match(type='GLOBAL_POSITION_INT',
+            msg = self.mav_util.recv_match(type='GLOBAL_POSITION_INT',
                                              blocking=True)
             if msg.relative_alt / 1000 < 0.1:
                 break
@@ -573,9 +599,9 @@ class Drone():
                 frame = mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
                 
             # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_GLOBAL_INT
-            self.connection.mav.set_position_target_global_int_send(
+            self.mav_util.mav.set_position_target_global_int_send(
                 int((time.time()-self._start_time)*1000),  # time_boot_ms
-                self.connection.target_system,  # target_system
+                self.mav_util.target_system,  # target_system
                 mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 frame,  # frame
                 type_mask, # type mask
@@ -593,9 +619,9 @@ class Drone():
 
         else:
             # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
-            self.connection.mav.set_position_target_local_ned_send(
+            self.mav_util.mav.set_position_target_local_ned_send(
                 int((time.time()-self._start_time)*1000),  # time_boot_ms
-                self.connection.target_system,  # target_system
+                self.mav_util.target_system,  # target_system
                 mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
                 mavlink.MAV_FRAME_LOCAL_NED,  # frame
                 type_mask,  # type_mask
@@ -647,9 +673,9 @@ class Drone():
 
 
         # https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED
-        self.connection.mav.set_position_target_local_ned_send(
+        self.mav_util.mav.set_position_target_local_ned_send(
             int((time.time()-self._start_time)*1000),  # time_boot_ms
-            self.connection.target_system,  # target_system
+            self.mav_util.target_system,  # target_system
             mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
             frame,  # frame
             type_mask,  # type_mask 
