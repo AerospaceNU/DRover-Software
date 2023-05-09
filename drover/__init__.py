@@ -8,4 +8,5 @@ from drover.computer_vision.fiducial_detector import ArucoMarker, FiducialDetect
 
 
 from drover.drone_control.mission_controller import Waypoint, MissionController
-from drover.onboard_control.led_manager import DRoverLEDs
+from drover.drone_control.led_manager import DRoverLEDs
+from drover.drone_control.mav_custom_comms import DRoverComms, GCSComms

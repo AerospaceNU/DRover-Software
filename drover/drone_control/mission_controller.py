@@ -43,7 +43,7 @@ class Waypoint():
 
 class MissionController():
     def __init__(self, drone: Drone, 
-                 waypoints: List[Waypoint],
+                 waypoints: List[Waypoint] = None,
                  use_home_rally_point: bool = True):
         """Class handling drone missions
 
@@ -56,8 +56,23 @@ class MissionController():
         self._drone = drone
         self._use_home_rally_point = use_home_rally_point
 
+    def set_waypoints(self, waypoints: List[Waypoint]):
+        """ (Re)sets the waypoint list """
+        self._waypoints = waypoints.copy()
+        
+##########
+# Mission helpers
+##########
+
     def _pre_mission(self):
         """ Called at the beginning of every mission """
+        # validate waypoints
+        if self._waypoints is None:
+            # TODO do more sanity checks
+            log.error("Waypoint list is NoneType")
+            return False
+        
+        # rally home point
         if self._use_home_rally_point:
             self._drone.set_home_rally_point()
             # force to only RTL to rally point(s)
@@ -73,6 +88,8 @@ class MissionController():
                 mission_list.append((lat, lon, wp.alt))
                 
         self._drone.upload_mission_latlon(mission_list)
+        
+        return True
 
     def goto_simple_waypoint(self, waypoint):
         """ Handles a simple goto waypoint without marker """    
@@ -139,7 +156,6 @@ class MissionController():
             time.sleep(waypoint.wait_time)        
             self._drone.arm_takeoff(waypoint.alt)
 
-
 ##########
 # Missions
 ##########
@@ -148,7 +164,8 @@ class MissionController():
         """
         Run a mission that simply goes to each waypoint in order
         """
-        self._pre_mission()
+        if not self._pre_mission():
+            return False
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
@@ -156,10 +173,12 @@ class MissionController():
 
         self._drone.rtl()
         self._drone.wait_disarmed()
+        return True
         
     def circle_mission(self, radius=10.0, speed=2.0, laps=1, yaw=90):
         """ Run a mission that circles all waypoints """
-        self._pre_mission()
+        if not self._pre_mission():
+            return False
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
@@ -168,10 +187,12 @@ class MissionController():
 
         self._drone.rtl()
         self._drone.wait_disarmed()
+        return True
         
     def spiral_mission(self, end_radius=30.0, start_radius=10, speed=2.0, laps=4):
         """ Run a mission that spirals all waypoints """
-        self._pre_mission()
+        if not self._pre_mission():
+            return False
         self._drone.arm_takeoff(self._waypoints[0].alt)
 
         for waypoint in self._waypoints:
@@ -183,15 +204,18 @@ class MissionController():
 
         self._drone.rtl()
         self._drone.wait_disarmed()
+        return False
 
     def fiducial_search_mission(self, detector: FiducialDetector, 
                                 start_radius=5, end_radius=20.0, speed=4.0, 
                                 laps=4, max_dps=10, search_yaw=0):
         """ Run a mission that searches for aruco markers at waypoints """
-        self._pre_mission()
+        if not self._pre_mission():
+            return False
+        
         ret = self._drone.arm_takeoff(self._waypoints[0].alt)
         if not ret:
-            return
+            return False
 
         for waypoint in self._waypoints:
             # if no marker, just go to waypoint and continue
@@ -236,3 +260,4 @@ class MissionController():
         # done with waypoints, go home and land
         self._drone.rtl()
         self._drone.wait_disarmed()
+        return True

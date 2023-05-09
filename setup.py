@@ -24,6 +24,7 @@ setup(
     ],
     scripts=[
         'drover/drover_main.py',
+        'drover/drover_gcs.py',
         'drover/drover_startup.sh'
     ]  # Provided files can be run from CLI
 )
