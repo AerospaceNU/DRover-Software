@@ -16,6 +16,7 @@ log.remove()
 log.add(sys.stderr, level="DEBUG", format=logger_format)
 
 
+# main
 def main(drone: Drone):
     # define waypoints
     waypoints = [
@@ -33,8 +34,9 @@ def main(drone: Drone):
 
     # init objects
     mc = MissionController(drone, waypoints)
-    detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
     leds = DRoverLEDs(drone)
+    detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
+    detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
     
     # run mission
     # mc.simple_mission()

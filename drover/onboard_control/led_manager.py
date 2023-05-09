@@ -41,6 +41,8 @@ class DRoverLEDs():
         self.speed = speed
         
         self._drone = drone
+        self._last_flash_call = 0
+        self._flash_duration = 2
         
         self.pixels = neopixel.NeoPixel(pin, count)
         self.pixels.fill(self.main_color)
@@ -65,6 +67,11 @@ class DRoverLEDs():
             else:
                 self.main_color = self.IDLE_COLOR
             
+            # check if we should reset secondary color
+            if (time.time()-self._last_flash_call) > self._flash_duration:
+                self.secondary_color = self.BLACK
+                self._last_flash_call = float('inf')
+            
             # set color
             self.pixels.fill(self.main_color)
             time.sleep(self.speed*1.00)
@@ -74,4 +81,8 @@ class DRoverLEDs():
             time.sleep(self.speed*0.25)
             self.pixels.fill(self.secondary_color)
             time.sleep(self.speed*0.25)
-                
+            
+    def flash_color(self, color, duration=2):
+        self._last_flash_call = time.time()
+        self._flash_duration = duration
+        self.secondary_color = color

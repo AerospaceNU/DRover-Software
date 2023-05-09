@@ -30,7 +30,8 @@ class FiducialDetector():
                  display: bool = False,
                  frames_needed: int = 3,
                  marker_loss_timeout: float = 0.5,
-                 display_scale: float = 1.0):
+                 display_scale: float = 1.0,
+                 max_callback_rate: float = 10):
 
         # get abstracted camera object to retrieve frames
         if camera is None:
@@ -47,6 +48,9 @@ class FiducialDetector():
         self._marker_length = size
         self._aruco_dict = {}
         self._lock = Lock()
+        self._marker_callbacks = []
+        self._max_callback_rate = max_callback_rate
+        self._last_callbacks = 0
         self.display_scale = display_scale
 
         # Run the camera thread
@@ -106,6 +110,11 @@ class FiducialDetector():
 
         return markers
 
+    def register_marker_callback(self, handler_func):
+        """ Registers a callback called when a maker is seen.
+            Function is given a list of seen markers """
+        self._marker_callbacks.append(handler_func)
+
     def _run(self):
         """ Runs the main loop of the program
         """
@@ -164,3 +173,9 @@ class FiducialDetector():
                 cv2.imshow('aruco', resized)
                 cv2.waitKey(1)
 
+            # run callbacks
+            if (self._marker_callbacks and 
+                (time.time()-self._last_callbacks) > 1/self._max_callback_rate):
+                self._last_callbacks = time.time()
+                for handler in self._marker_callbacks:
+                    handler(self.get_seen_markers())
