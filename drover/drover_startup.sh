@@ -14,11 +14,15 @@ mavproxy_cmd='mavproxy.py
     --out="127.0.0.1:14551"
     --aircraft="DRover"
     --state-basedir=/var/log
+    --default-modules="link"
     '
     
 screen -X -S mavproxy kill # kill mavproxy if already open
 screen -dmS mavproxy bash -c '${mavproxy_cmd} ; bash'
 echo "Started mavproxy"
 
-# TODO start drover
-bash
+# start drover
+echo "Starting DRover main"
+drover_main.py
+
+echo "dead"

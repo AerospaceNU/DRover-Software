@@ -27,23 +27,23 @@ def main(drone: Drone):
     #     Waypoint(-35.36362259779146, 149.16479731146183, 2, use_latlon=True, aruco_id=4, aruco2_id=5, wait_time=2)
     # ]
     
-    # init objects
+    # setup
+    leds = DRoverLEDs(drone)
+    detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
+    detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
+
+    # Mission upload and formation
     log.info("Waiting for mission upload...")
     comms = DRoverComms(drone)
     waypoints = comms.get_full_mission()
-
     log.success(f"Mission uploaded")
 
     mc = MissionController(drone, waypoints)
-    leds = DRoverLEDs(drone)
-    
-    detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
-    detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
     
     # add random offsets to waypoints
-    random.seed(2)
-    for i, wp in enumerate(waypoints):
-        wp.move_random(i*10)
+    # random.seed(2)
+    # for i, wp in enumerate(waypoints):
+    #     wp.move_random(i*10)
         
     # run mission
     msg = comms.get_start_signal()
