@@ -8,7 +8,7 @@ from loguru import logger as log
 # init pretty logging
 logger_format = (
     # "<green>{time:HH:mm:ss.SSS}</green> | "
-    "<level>{level: <8}</level> | "
+    # "<level>{level: <8}</level> | "
     "<level>{message}</level>"
 )
 log.remove()
@@ -73,6 +73,18 @@ class GCShell(cmd.Cmd):
         self._waypoints[int(args[0])] = wp
         log.info(wp)
 
+    def do_start(self, args):
+        """Starts the mission with configurable values\n(start [start_radius] [end_radius] [speed] [laps] [max_dps])"""
+        args = [float(x) for x in args.split()]
+        
+        if len(args) == 0:
+            self._comms.send_start_signal(*args)
+        elif len(args) == 5:
+            self._comms.send_start_signal()
+        else:
+            log.error("start command needs 0 or 5 args")
+
+
     def do_print(self, args):
         """ Prints the list of waypoints """
         for key, wp in self._waypoints.items():
@@ -86,7 +98,6 @@ class GCShell(cmd.Cmd):
     #TODO PLAY_TUNE_V2        
 
 if __name__ == "__main__":
-    
     try:
         GCShell().cmdloop()
     except Exception as e:

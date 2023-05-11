@@ -32,10 +32,7 @@ def main(drone: Drone):
     comms = DRoverComms(drone)
     waypoints = comms.get_full_mission()
 
-    log.success(f"{waypoints}")
-    return
-    current issue is that we get ACK of "UNSUPPORTED" and IDK from where. 
-    Try looking at SRC component of the ACKs, and maybe we need to temporarily use mavlink-router
+    log.success(f"Mission uploaded")
 
     mc = MissionController(drone, waypoints)
     leds = DRoverLEDs(drone)
@@ -49,7 +46,22 @@ def main(drone: Drone):
         wp.move_random(i*10)
         
     # run mission
-    mc.fiducial_search_mission(detector, end_radius=40, laps=4, speed=4, max_dps=10, search_yaw=180-30)
+    msg = comms.get_start_signal()
+    if msg.param1 == 0:
+        mc.fiducial_search_mission(detector, 
+                                end_radius=40, 
+                                speed=4, 
+                                laps=4, 
+                                max_dps=10, 
+                                search_yaw=180-30)
+    else:
+        mc.fiducial_search_mission(detector, 
+                                   start_radius=msg.param1,
+                                   end_radius=msg.param2, 
+                                   speed=msg.param3, 
+                                   laps=msg.param4, 
+                                   max_dps=msg.x, 
+                                   search_yaw=180-30)
 
 if __name__ == "__main__":
     drone = Drone()

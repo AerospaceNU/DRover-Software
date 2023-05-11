@@ -46,7 +46,8 @@ class Drone():
                                                   baud=baudrate,
                                                   dialect="ardupilotmega",
                                                   autoreconnect=True,
-                                                  source_component=mavlink.MAV_COMP_ID_ONBOARD_COMPUTER)
+                                                  source_component=mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,
+                                                  source_system=1)
         self.mav_conn.message_hooks.append(self._mav_msg_handler)
 
         # start thread for sending heartbeats
@@ -113,8 +114,8 @@ class Drone():
         elif type == "GPS_RAW_INT":
             self._state.gps_quality = msg.eph
 
-        for msg, handler in self._mav_callbacks:
-            if type == msg:
+        for msgtype, handler in self._mav_callbacks:
+            if type == msgtype:
                 handler(msg)
         
 ###################

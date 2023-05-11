@@ -1,5 +1,6 @@
 import time
-from threading import Thread
+import numpy as np
+from threading import Thread, Lock
 from pymavlink import mavutil
 from loguru import logger as log
 from drover import Drone, Waypoint
@@ -23,19 +24,30 @@ class DRoverComms():
         self._drone = drone
         self._waypoints: list[Waypoint] = []
         self._num_waypoints = 0
+        self._last_start_msg = None
 
-        drone.add_mavlink_callback("MAV_CMD_USER_1", self._handle_user1_cmd)
-        drone.add_mavlink_callback("MAV_CMD_USER_2", self._handle_user2_cmd)
+        drone.add_mavlink_callback("COMMAND_INT", self._handle_command_int)
         
+    def _handle_command_int(self, msg: mavlink.MAVLink_command_int_message):
+        """ Handle command int messages """
+        if msg.command == mavlink.MAV_CMD_USER_1:
+            self._handle_user1_cmd(msg)
+        elif msg.command == mavlink.MAV_CMD_USER_2:
+            self._handle_user2_cmd(msg)
+        elif msg.command == mavlink.MAV_CMD_USER_3:
+            self._handle_user3_cmd(msg)
+        else:
+            self._acknowledge(msg, mavlink.MAV_RESULT_UNSUPPORTED)
+              
     def _handle_user1_cmd(self, msg: mavlink.MAVLink_command_int_message):
         """ lat/lon waypoint callback
             p1: num of waypoints (zero indicates clearing waypoints for new upload attempt)
             p2: waypoint num
             p3: aruco1_id
             p4: aruco2_id
-            p5: latitude (int, degE7)
-            p6: longitude (int, degE7)
-            p7: altitude (int, mm)
+            x:  latitude (int, degE7)
+            y:  longitude (int, degE7)
+            z:  altitude (int, mm)
             """
         # reset mission if zero waypoints
         if msg.param1 == 0: 
@@ -45,18 +57,18 @@ class DRoverComms():
             return
         
         # new mission if nonzero num waypoints and is different than tracked
-        if self._num_waypoints != msg.param1:
-            self._num_waypoints = msg.param1
-            self._waypoints = [None]*msg.param1
+        if self._num_waypoints != int(msg.param1):
+            self._num_waypoints = int(msg.param1)
+            self._waypoints = [None]*int(msg.param1)
         
         # add waypoint
         wp = Waypoint(msg.x/1e7, 
                       msg.y/1e7, 
                       msg.z/1e3,
                       use_latlon=True,
-                      aruco_id=int(msg.param3),
-                      aruco2_id=int(msg.param4))
-        self._waypoints[msg.param2] = wp
+                      aruco_id=None if np.isnan(msg.param3) else int(msg.param3),
+                      aruco2_id=None if np.isnan(msg.param4) else int(msg.param4))
+        self._waypoints[int(msg.param2)] = wp
         
         self._acknowledge(msg)
         log.debug(f"Added waypoint LLA {msg.param2}: {msg.x/1e7}, {msg.y/1e7}, {msg.z/1e3}")
@@ -67,43 +79,57 @@ class DRoverComms():
             p2: waypoint num
             p3: aruco1_id
             p4: aruco2_id
-            p5: northing (int, mm)
-            p6: easting (int, mm)
-            p7: altitude (int, mm)
+            x:  northing (int, mm)
+            y:  easting (int, mm)
+            z:  altitude (int, mm)
             """
         # reset mission if zero waypoints
         if msg.param1 == 0: 
             self._num_waypoints = 0
             self._waypoints = []
+            log.debug("Got reset waypoints msg")
             self._acknowledge(msg)
             return
         
         # new mission if nonzero num waypoints and is different than tracked
-        if self._num_waypoints != msg.param1:
-            self._num_waypoints = msg.param1
-            self._waypoints = [None]*msg.param1
+        if self._num_waypoints != int(msg.param1):
+            self._num_waypoints = int(msg.param1)
+            self._waypoints = [None]*int(msg.param1)
         
         # add waypoint
         wp = Waypoint(msg.x/1e3, 
                       msg.y/1e3, 
                       msg.z/1e3,
                       use_latlon=False,
-                      aruco_id=int(msg.param3),
-                      aruco2_id=int(msg.param4))
-        self._waypoints[msg.param2] = wp
+                      aruco_id=None if np.isnan(msg.param3) else int(msg.param3),
+                      aruco2_id=None if np.isnan(msg.param4) else int(msg.param4))
+        self._waypoints[int(msg.param2)] = wp
         
+        log.debug(f"Added waypoint NED {msg.param2}: {msg.x/1e3}, {msg.y/1e3}, {msg.z/1e3}")
         self._acknowledge(msg)
-        log.debug(f"Added waypoint NED {msg.param2}: {msg.x/1e7}, {msg.y/1e7}, {msg.z/1e3}")
+
+    def _handle_user3_cmd(self, msg: mavlink.MAVLink_command_int_message):
+        """ start signal command
+            p1: float
+            p2: float
+            p3: float
+            p4: float
+            x:  int
+            y:  int
+            z:  int
+        """
+        self._last_start_msg = msg
+        self._acknowledge(msg)  
         
-    def _acknowledge(self, msg: mavlink.MAVLink_command_long_message):
+    def _acknowledge(self, msg: mavlink.MAVLink_command_long_message, result = mavlink.MAV_RESULT_ACCEPTED):
         """ Sends a COMMAND_ACK in response to a command """
         self._drone.mav_conn.mav.command_ack_send(
             msg.command, # command
-            mavlink.MAV_RESULT_ACCEPTED, # result
+            result, # result
             0, # progress
             0, # result_param2
-            msg.get_srcSystem(), # target_system
-            msg.get_srcComponent(), # target_component
+            0, # target_system
+            0, # target_component
         )
         
     def log(self, text: str, severity=mavlink.MAV_SEVERITY_DEBUG):
@@ -111,7 +137,7 @@ class DRoverComms():
             log.warning(f"String sent do GCS is truncated ({len(text)})")
             text = text[:50]
         
-        self._drone.mav_conn.mav.statustext_send(severity, text)    
+        self._drone.mav_conn.mav.statustext_send(severity, text.encode('ascii'))    
 
     def get_full_mission(self):
         """ Waits for a full mission to be uploaded and returns it """
@@ -120,11 +146,34 @@ class DRoverComms():
         
         return self._waypoints
 
+    def get_start_signal(self) -> mavlink.MAVLink_command_int_message:
+        """ Waits for a new start signal (MAV_CMD_USER_3) """
+        self._last_start_msg = None
+        while self._last_start_msg == None:
+            self._drone.drain_mavlink_buffer()
+            
+        return self._last_start_msg
+        
+
 class GCSComms():
+    MAV2LOG_SEVERITY = {
+        mavlink.MAV_SEVERITY_EMERGENCY:50, # CRITICAL
+        mavlink.MAV_SEVERITY_ALERT:50,     # CRITICAL
+        mavlink.MAV_SEVERITY_CRITICAL:50,  # CRITICAL
+        mavlink.MAV_SEVERITY_ERROR:40,     # ERROR
+        mavlink.MAV_SEVERITY_WARNING:30,   # WARNING
+        mavlink.MAV_SEVERITY_NOTICE:20,    # INFO,
+        mavlink.MAV_SEVERITY_INFO:20,      # INFO
+        mavlink.MAV_SEVERITY_DEBUG:10,     # DEBUG
+    }
+    
     def __init__(self, 
-                 connection_string="udpin:0.0.0.0:14552", 
+                 connection_string="tcp:localhost:5762", 
                  baudrate=115200):
         """ Class that allows for sending custom MAVLink messages (ex MAV_CMD_USER_1) """
+        self._last_heartbeat = 0
+        self._lock = Lock()
+        
         self.mav_conn: mavutil.mavfile = mavutil.mavlink_connection(
                                             connection_string,
                                             baud=baudrate,
@@ -137,13 +186,27 @@ class GCSComms():
         
     def _run(self):
         while True:
+            # clear buffer
+            self._lock.acquire()
             msg = self.mav_conn.recv_msg()
+            self._lock.release()
             if msg is None:
                 continue
             
+            # check for log messages
             type = msg.get_type()
             if type == "STATUSTEXT":
-                log.log(msg.severity, msg.text)
+                log.log(self.MAV2LOG_SEVERITY[msg.severity], msg.text)
+
+            # send heartbeat
+            # if time.time()-self._last_heartbeat > 0.5:
+            #     self.mav_conn.mav.heartbeat_send(
+            #         mavlink.MAV_TYPE_GCS,
+            #         mavlink.MAV_AUTOPILOT_INVALID,
+            #         0,
+            #         0,
+            #         mavlink.MAV_STATE_ACTIVE)
+            #     self._last_heartbeat = time.time()
 
     def send_command_int(self, command, param1:float=0,
                           param2:float=0, param3:float=0,
@@ -151,8 +214,9 @@ class GCSComms():
                           y:int=0, z:int=0,
                           wait_ack=False):
         """ Send a command to the companion computer """
+        self._lock.acquire()
         self.mav_conn.mav.command_int_send(
-            0,  # target_system
+            1,  # target_system
             mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,  # target_component
             0, # frame
             command,  # command
@@ -171,14 +235,16 @@ class GCSComms():
                                 type='COMMAND_ACK',
                                 condition=f'COMMAND_ACK.command=={command}',
                                 blocking=True, timeout=2)
+            self._lock.release()
             if ack is None:
                 return False
             return ack.result == mavlink.MAV_RESULT_ACCEPTED
+        self._lock.release()
         return True
 
     def send_waypoints(self, waypoints: list[Waypoint]):
         """ Sends waypoints to DRover """
-        ret = self.send_command_int(mavlink.MAV_CMD_USER_2)
+        ret = self.send_command_int(mavlink.MAV_CMD_USER_2, wait_ack=True)
         if not ret:
             log.error(f"No ack for MAV_CMD_USER_1/2. Try re-uploading")
             
@@ -210,3 +276,25 @@ class GCSComms():
             if not ret:
                 log.error(f"No ack from WP {i}. Try re-uploading")
 
+    def send_start_signal(self, 
+                          param1:float=0.0,
+                          param2:float=0.0,
+                          param3:float=0.0,
+                          param4:float=0.0,
+                          x:int=0,
+                          y:int=0,
+                          z:int=0,):
+        """ Sends the start signal """
+        ret = self.send_command_int(
+            mavlink.MAV_CMD_USER_3,
+            param1,
+            param2,
+            param3,
+            param4,
+            int(x),
+            int(y),
+            int(z),
+            wait_ack=True
+        )                
+        if not ret:
+            log.error(f"No ack from start signal. GLHF")
