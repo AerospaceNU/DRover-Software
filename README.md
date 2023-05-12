@@ -18,19 +18,25 @@ front of its name (ex `import .camera`).
 
 ## Creating a service on the RPi
 We want to run `drover_startup.sh` on boot, so we shall create a unix service.
-1. Create file `/etc/systemd/system/drover.service` with the following (edit ExecStart location):
+1. Create file `/etc/systemd/system//drover.service` with the following:
 ```
 [Unit]
 Description=Drover service.
 
 [Service]
+Type=simple
+User=pi
+Group=pi
 ExecStart=/bin/bash /home/pi/.local/bin/drover_startup.sh
 
 [Install]
 WantedBy=multi-user.target
+
+
 ```
-2. Reload stuff with `systemctl daemon-reload` 
-3. Enable it: `systemctl enable drover.service`
+1. Reload stuff with `systemctl daemon-reload` 
+2. Enable it: `systemctl enable drover.service`
 Also of usefulness:
 - `systemctl restart drover.service`
 - `systemctl status drover.service`
+- [Setup for neopixels](https://github.com/jgarff/rpi_ws281x/issues/326)
