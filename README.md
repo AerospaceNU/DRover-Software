@@ -18,13 +18,13 @@ front of its name (ex `import .camera`).
 
 ## Creating a service on the RPi
 We want to run `drover_startup.sh` on boot, so we shall create a unix service.
-1. Create file `/etc/systemd/system/drover.service` with the following:
+1. Create file `/etc/systemd/system/drover.service` with the following (edit ExecStart location):
 ```
 [Unit]
 Description=Drover service.
 
 [Service]
-ExecStart=/bin/bash /usr/sbin/drover_startup.sh
+ExecStart=/bin/bash /home/pi/.local/bin/drover_startup.sh
 
 [Install]
 WantedBy=multi-user.target
