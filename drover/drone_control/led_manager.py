@@ -10,7 +10,7 @@ try:
     import neopixel
 except NotImplementedError:
     class board():
-        D12 = 0
+        D10 = 0
     class mock_neopixel():
         fill = lambda *a: None
     class neopixel():
@@ -35,7 +35,7 @@ class DRoverLEDs():
     IDLE_COLOR    = YELLOW
     UNKNOWN_COLOR = PINK
     
-    def __init__(self, drone: Drone, pin=board.D12, count=18, speed=1):
+    def __init__(self, drone: Drone, pin=board.D10, count=18, speed=1):
         self.main_color = self.IDLE_COLOR
         self.secondary_color = self.BLACK
         self.speed = speed

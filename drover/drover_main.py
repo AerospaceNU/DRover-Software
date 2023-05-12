@@ -2,8 +2,9 @@
 
 import sys
 import random
+import numpy as np
 from loguru import logger as log
-from drover import Drone, MissionController, Waypoint, FiducialDetector, SimCamera, DRoverLEDs, DRoverComms
+from drover import Drone, MissionController, Waypoint, FiducialDetector, OpenCVCamera, DRoverLEDs, DRoverComms
 
 
 # init pretty logging
@@ -29,7 +30,15 @@ def main(drone: Drone):
     
     # setup
     leds = DRoverLEDs(drone)
-    detector = FiducialDetector(SimCamera(), display=True, frames_needed=10, marker_loss_timeout=0.5)
+
+    camera_matrix = np.array([[914.07,  0,      664.35],
+                              [0,       917.37, 360.10],
+                              [0,       0,      1]], dtype=np.float32)
+
+    dist_coeffs = np.array([.04847, 0.60185, -.00940, .00509, -2.1865], dtype=np.float32)
+    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30)
+
+    detector = FiducialDetector(cam, display=False, frames_needed=10, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
 
     # Mission upload and formation
