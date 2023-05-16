@@ -129,7 +129,7 @@ class FiducialDetector():
             frame = self.camera.get_frame()
             if frame is None or frame.size == 0:
                 continue
-
+            log.debug(f"{frame.shape}")
             corners, ids, rejected = detector.detectMarkers(frame)
 
             # continue if no markers found
@@ -178,6 +178,7 @@ class FiducialDetector():
                     cv2.namedWindow("aruco", cv2.WINDOW_NORMAL)
                     cv2.setWindowProperty("aruco", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
                 cv2.imshow("aruco", resized)
+                cv2.imshow('aruco', resized)
                 cv2.waitKey(1)
 
             # run callbacks

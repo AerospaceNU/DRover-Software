@@ -11,6 +11,7 @@ screen -dmS mavproxy bash -c '/home/pi/.local/bin/mavproxy.py --baudrate=115200 
 
 # start drover
 echo "Starting DRover main"
+export DISPLAY=":0"
 /home/pi/.local/bin/drover_main.py
 
 echo "dead"

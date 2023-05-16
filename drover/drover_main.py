@@ -37,9 +37,9 @@ def main(drone: Drone):
                               [0,       0,      1]], dtype=np.float32)
 
     dist_coeffs = np.array([.04847, 0.60185, -.00940, .00509, -2.1865], dtype=np.float32)
-    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30)
+    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15)
 
-    detector = FiducialDetector(cam, display=False, size=0.2, frames_needed=10, marker_loss_timeout=0.5)
+    detector = FiducialDetector(cam, display=True, display_scale=0.562, frames_needed=10, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
 
     # Mission upload and formation
