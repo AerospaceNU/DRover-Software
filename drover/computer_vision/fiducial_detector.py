@@ -27,6 +27,7 @@ class FiducialDetector():
                  camera: Camera = None,
                  dictionary: int = cv2.aruco.DICT_4X4_50,
                  size: float = 0.2,
+                 fullscreen:bool = False,
                  display: bool = False,
                  frames_needed: int = 3,
                  marker_loss_timeout: float = 0.5,
@@ -52,6 +53,7 @@ class FiducialDetector():
         self._max_callback_rate = max_callback_rate
         self._last_callbacks = 0
         self.display_scale = display_scale
+        self._fullscreen = fullscreen
 
         # Run the camera thread
         self._camera_thread = Thread(target=self._run, daemon=True)
@@ -172,7 +174,10 @@ class FiducialDetector():
                 height = int(frame.shape[0] * self.display_scale)
                 dim = (width, height)
                 resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
-                cv2.imshow('aruco', resized)
+                if self._fullscreen:
+                    cv2.namedWindow("aruco", cv2.WINDOW_NORMAL)
+                    cv2.setWindowProperty("aruco", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                cv2.imshow("aruco", resized)
                 cv2.waitKey(1)
 
             # run callbacks
