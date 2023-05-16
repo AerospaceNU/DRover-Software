@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import time
 import random
 import numpy as np
 from loguru import logger as log
@@ -57,23 +58,25 @@ def main(drone: Drone):
     # run mission
     msg = comms.get_start_signal()
     if msg.param1 == 0:
-        log.success("Starting defaults...")
-        mc.fiducial_search_mission(detector, 
+        log.success("Starting with default args...")
+        while not mc.fiducial_search_mission(detector, 
                                 end_radius=40, 
                                 speed=4, 
                                 laps=4, 
                                 max_dps=10, 
-                                search_yaw=180-30)
+                                search_yaw=180-30):
+            time.sleep(5)
+            
     else:
-        log.success("Starting custom...")
-
-        mc.fiducial_search_mission(detector, 
+        log.success("Starting with custom args...")
+        while not mc.fiducial_search_mission(detector, 
                                    start_radius=msg.param1,
                                    end_radius=msg.param2, 
                                    speed=msg.param3, 
                                    laps=msg.param4, 
                                    max_dps=msg.x, 
-                                   search_yaw=180-30)
+                                   search_yaw=180-30):
+            time.sleep(5)
 
 if __name__ == "__main__":
     drone = Drone()

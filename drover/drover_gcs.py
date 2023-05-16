@@ -30,6 +30,8 @@ class GCShell(cmd.Cmd):
         self._comms = comms
         
         self._waypoints = {}
+        
+        self._comms.mav_conn.wait_heartbeat()
 
     def do_upload(self, args):
         """ Upload the stored mission to DRover (no args) """
@@ -50,6 +52,9 @@ class GCShell(cmd.Cmd):
     def do_lla(self, args):
         """Adds an LLA waypoint to the list\n(add <wp_num> <lat> <lon> <alt> [aruco1_id] [aruco2_id])"""
         args = args.split()
+        if len(args) < 4 or len(args) > 6:
+            log.error("Wrong number of arguments")
+            
         wp = Waypoint(float(args[1]),
                       float(args[2]),
                       float(args[3]),
@@ -63,6 +68,9 @@ class GCShell(cmd.Cmd):
     def do_neu(self, args):
         """Adds an NEU waypoint to the list\n(add <wp_num> <north> <east> <alt> [aruco1_id] [aruco2_id])"""
         args = args.split()
+        if len(args) < 4 or len(args) > 6:
+            log.error("Wrong number of arguments")
+
         wp = Waypoint(float(args[1]),
                       float(args[2]),
                       float(args[3]),

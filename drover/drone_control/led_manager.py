@@ -27,15 +27,15 @@ class DRoverLEDs():
     BLUE    = (  0,   0, 255)
     YELLOW  = (255, 200,   0)
     PINK    = (255,   0, 255)
-    ORANGE  = (255, 100,   0)
+    ORANGE  = (255,  80,   0)
     
     GUIDED_COLOR  = GREEN
-    MANUAL_COLOR  = ORANGE
+    MANUAL_COLOR  = BLUE
     RTL_COLOR     = RED
-    IDLE_COLOR    = YELLOW
-    UNKNOWN_COLOR = PINK
+    IDLE_COLOR    = PINK
+    UNKNOWN_COLOR = ORANGE
     
-    def __init__(self, drone: Drone, pin=board.D10, count=18, speed=1):
+    def __init__(self, drone: Drone, pin=board.D10, count=18, speed=2):
         self.main_color = self.IDLE_COLOR
         self.secondary_color = self.BLACK
         self.speed = speed
@@ -54,35 +54,35 @@ class DRoverLEDs():
         while True:
             # determine main color
             state = self._drone.state()
-            if state.armed:
-                if state.mode == "GUIDED":
-                    self.main_color = self.GUIDED_COLOR
-                elif state.mode == "RTL":
-                    self.main_color = self.RTL_COLOR
-                elif state.mode in ["STABILIZE", "ACRO", "ALT_HOLD", "LOITER"]:
-                    self.main_color = self.MANUAL_COLOR
-                else:
-                    self.main_color = self.UNKNOWN_COLOR
-            
+            if state.mode == "GUIDED":
+                self.main_color = self.GUIDED_COLOR
+            elif state.mode in ["RTL", "LAND"]:
+                self.main_color = self.RTL_COLOR
+            elif state.mode in ["STABILIZE", "ACRO", "ALT_HOLD", "LOITER"]:
+                self.main_color = self.MANUAL_COLOR
             else:
+                self.main_color = self.UNKNOWN_COLOR
+
+            # if there is no secondary use to show idle mode
+            if not state.armed and self.secondary_color == self.BLACK:
                 self.main_color = self.IDLE_COLOR
-            
+
             # check if we should reset secondary color
             if (time.time()-self._last_flash_call) > self._flash_duration:
                 self.secondary_color = self.BLACK
                 self._last_flash_call = float('inf')
-            
+
             # set color
             self.pixels.fill(self.main_color)
-            time.sleep(self.speed*1.00)
+            time.sleep(1.00/self.speed)
             self.pixels.fill(self.secondary_color)
-            time.sleep(self.speed*0.25)
+            time.sleep(0.25/self.speed)
             self.pixels.fill(self.main_color)
-            time.sleep(self.speed*0.25)
+            time.sleep(0.25/self.speed)
             self.pixels.fill(self.secondary_color)
-            time.sleep(self.speed*0.25)
-            
-    def flash_color(self, color, duration=2):
+            time.sleep(0.25/self.speed)
+
+    def flash_color(self, color, duration=1):
         self._last_flash_call = time.time()
         self._flash_duration = duration
         self.secondary_color = color
