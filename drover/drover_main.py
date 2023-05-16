@@ -85,4 +85,5 @@ if __name__ == "__main__":
         drone.rtl()
     except KeyboardInterrupt as e:
         log.error("Keyboard interrupt, RTLing drone...")
+        log.exception(e)
         drone.rtl()

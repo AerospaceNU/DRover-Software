@@ -168,7 +168,7 @@ class GCSComms():
     }
     
     def __init__(self, 
-                 connection_string="tcp:localhost:5762", 
+                 connection_string="udpin:localhost:14551", 
                  baudrate=115200):
         """ Class that allows for sending custom MAVLink messages (ex MAV_CMD_USER_1) """
         self._last_heartbeat = 0
