@@ -22,7 +22,7 @@ class GCShell(cmd.Cmd):
     file = None
     
     def __init__(self,
-                 comms: GCSComms = GCSComms(),
+                 comms: GCSComms = GCSComms(connection_string="udpin:127.0.0.1:14551"),
                  completekey: str = "tab", 
                  stdin: IO[str] | None = None, 
                  stdout: IO[str] | None = None):

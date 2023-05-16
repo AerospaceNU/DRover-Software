@@ -49,6 +49,7 @@ class Drone():
                                                   source_component=mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,
                                                   source_system=1)
         self.mav_conn.message_hooks.append(self._mav_msg_handler)
+        self.mav_conn.target_system = 1 # sysid of drone
 
         # start thread for sending heartbeats
         self._main_thread = Thread(target=self._run, daemon=True)
@@ -201,11 +202,13 @@ class Drone():
     def set_message_rate(self, hz, msg_id):
         """ Set the rate of a specific message from the drone """
         # https://mavlink.io/en/messages/common.html#MAV_CMD_SET_MESSAGE_INTERVAL
-        self.send_command_long(
+        ret = self.send_command_long(
             mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
             param1=msg_id,
             param2=1000000 / hz,
             wait_ack=True)
+        if not ret:
+            log.warning(f"Failed to set message rate ({msg_id}, {hz}hz)")
 
 ##################
 # Logic functions

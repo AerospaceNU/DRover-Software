@@ -8,3 +8,5 @@ drover.egg-info/
 .venv
 .*.jpg
 *.wbproj
+*.tlog
+*.tlog.raw

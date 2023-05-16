@@ -71,7 +71,7 @@ class MissionController():
             # TODO do more sanity checks
             log.error("Waypoint list is NoneType")
             return False
-        
+                
         # rally home point
         if self._use_home_rally_point:
             self._drone.set_home_rally_point()

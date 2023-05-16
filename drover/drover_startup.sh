@@ -7,7 +7,7 @@
 
 screen -X -S mavproxy kill # kill mavproxy if already open
 echo "Starting mavproxy"
-screen -dmS mavproxy bash -c '/home/pi/.local/bin/mavproxy.py --baudrate=115200 --streamrate=0 --source-system=1 --source-component=192 --master="/dev/serial0" --out="127.0.0.1:14550" --out="127.0.0.1:14551" --aircraft="DRover" --state-basedir=/home/pi --default-modules="link"'
+screen -dmS mavproxy bash -c '/home/pi/.local/bin/mavproxy.py --baudrate=115200 --streamrate=-1 --source-system=1 --source-component=192 --master="/dev/serial0" --out="127.0.0.1:14550" --out="127.0.0.1:14551" --aircraft="DRover" --state-basedir=/home/pi --default-modules="link"'
 
 # start drover
 echo "Starting DRover main"
