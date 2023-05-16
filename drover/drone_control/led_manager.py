@@ -27,7 +27,7 @@ class DRoverLEDs():
     BLUE    = (  0,   0, 255)
     YELLOW  = (255, 200,   0)
     PINK    = (255,   0, 255)
-    ORANGE  = (255, 128,   0)
+    ORANGE  = (255, 100,   0)
     
     GUIDED_COLOR  = GREEN
     MANUAL_COLOR  = ORANGE

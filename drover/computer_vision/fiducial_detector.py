@@ -125,6 +125,8 @@ class FiducialDetector():
 
         while True:
             frame = self.camera.get_frame()
+            if frame is None or frame.size == 0:
+                continue
 
             corners, ids, rejected = detector.detectMarkers(frame)
 
