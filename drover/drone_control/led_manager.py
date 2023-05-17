@@ -8,7 +8,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 try:
     import board
     import neopixel
-except NotImplementedError:
+except:
     class board():
         D10 = 0
     class mock_neopixel():

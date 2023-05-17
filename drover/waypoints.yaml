@@ -1,0 +1,10 @@
+Waypoint:
+  x: 0
+  y: 0
+  alt: 0
+  wait_time: 0
+  land: 0
+  use_latlon: 0
+  aruco_id: 0
+  aruco2_id: 0
+  marker_avoid_dist: 0

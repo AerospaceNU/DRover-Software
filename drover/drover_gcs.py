@@ -3,6 +3,7 @@ import cmd
 from typing import IO
 from drover import GCSComms, Waypoint
 from loguru import logger as log
+import yaml
 
 
 # init pretty logging
@@ -32,6 +33,21 @@ class GCShell(cmd.Cmd):
         self._waypoints = {}
         
         self._comms.mav_conn.wait_heartbeat()
+
+    def do_load(self, args):
+        """Load the waypoint mission into DRover"""
+        if not args:
+            args = "waypoints.yaml"
+        stream = open(args, 'r')
+        waypoint_dict = yaml.safe_load(stream)
+        waypoint_list = []
+
+        for wpt in waypoint_dict.values():
+            sl = list(wpt.values())
+            waypoint_list.append(Waypoint(sl[0],sl[1],sl[2],sl[3],sl[4],sl[5],sl[6],sl[7],sl[8]))
+       
+        self._comms.send_waypoints(waypoint_list)
+
 
     def do_upload(self, args):
         """ Upload the stored mission to DRover (no args) """
