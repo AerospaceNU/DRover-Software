@@ -96,9 +96,8 @@ class Drone():
         """ Function called for every new mavlink message 
             (called within self.connection.recv_match()) 
         """
-        
         type = msg.get_type()
-        if type == "HEARTBEAT":
+        if type == "HEARTBEAT" and msg.get_srcComponent() == 1: # HEARTBEAT from drone
             self._state.last_vehicle_heartbeat = time.time()
             self._state.armed = msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED
             if msg.custom_mode in mavutil.mode_mapping_acm:

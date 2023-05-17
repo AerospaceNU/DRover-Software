@@ -19,6 +19,7 @@ setup(
         'pymavlink',
         'loguru',
         'navpy',
+        'pyyaml',
         'rpi_ws281x',
         'adafruit-circuitpython-neopixel'
     ],

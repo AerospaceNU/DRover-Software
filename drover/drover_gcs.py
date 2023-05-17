@@ -32,7 +32,7 @@ class GCShell(cmd.Cmd):
         
         self._waypoints = {}
         
-        self._comms.mav_conn.wait_heartbeat()
+        # self._comms.mav_conn.wait_heartbeat()
 
     def do_load(self, args):
         """Load the waypoint mission into DRover"""
