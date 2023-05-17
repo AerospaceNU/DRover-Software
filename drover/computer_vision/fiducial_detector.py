@@ -185,5 +185,7 @@ class FiducialDetector():
             if (self._marker_callbacks and 
                 (time.time()-self._last_callbacks) > 1/self._max_callback_rate):
                 self._last_callbacks = time.time()
-                for handler in self._marker_callbacks:
-                    handler(self.get_seen_markers())
+                markers = self.get_seen_markers()
+                if len(markers) > 0:
+                    for handler in self._marker_callbacks:
+                        handler(markers)

@@ -65,7 +65,7 @@ class DRoverLEDs():
 
             # if there is no secondary use to show idle mode
             if not state.armed and self.secondary_color == self.BLACK:
-                self.main_color = self.IDLE_COLOR
+                self.secondary_color = self.IDLE_COLOR
 
             # check if we should reset secondary color
             if (time.time()-self._last_flash_call) > self._flash_duration:
