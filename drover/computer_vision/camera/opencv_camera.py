@@ -15,12 +15,16 @@ class OpenCVCamera(Camera):
                  width: int = None,
                  height: int = None,
                  fps: int = None,
+                 fourcc: str = None,
+                 backend: int = cv2.CAP_V4L2
                  ):
         """ Construct a new OpenCVCamera object """
-        self.cap = cv2.VideoCapture(camera_id)
+        self.cap = cv2.VideoCapture(camera_id, backend)
         self._camera_matrix = camera_matrix
         self._dist_coeffs = dist_coeffs
 
+        if fourcc is not None:
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc))
         if width is not None:
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         if height is not None:

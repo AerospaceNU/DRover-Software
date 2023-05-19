@@ -8,12 +8,12 @@ from drover import FiducialDetector, OpenCVCamera
 if __name__ == "__main__":
     # random camera data I pulled from a year ago
     # this should be replaced with camera calibration values
-    camera_matrix = np.array([[914.07,  0,      664.35],
-                              [0,       917.37, 360.10],
+    camera_matrix = np.array([[2600.2,  0,      1621.0],
+                              [0,       2606.2, 1191.8],
                               [0,       0,      1]], dtype=np.float32)
 
-    dist_coeffs = np.array([.04847, 0.60185, -.00940, .00509, -2.1865], dtype=np.float32)
-    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30)
+    dist_coeffs = np.array([.1868, -0.3992, 0, 0, 0], dtype=np.float32)
+    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
 
     detector = FiducialDetector(camera=cam, display=True)
 

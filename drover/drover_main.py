@@ -32,14 +32,14 @@ def main(drone: Drone):
     # setup
     leds = DRoverLEDs(drone)
 
-    camera_matrix = np.array([[914.07,  0,      664.35],
-                              [0,       917.37, 360.10],
+    camera_matrix = np.array([[2600.2,  0,      1621.0],
+                              [0,       2606.2, 1191.8],
                               [0,       0,      1]], dtype=np.float32)
 
-    dist_coeffs = np.array([.04847, 0.60185, -.00940, .00509, -2.1865], dtype=np.float32)
-    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15)
+    dist_coeffs = np.array([.1868, -0.3992, 0, 0, 0], dtype=np.float32)
+    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
 
-    detector = FiducialDetector(cam, display=True, display_scale=0.562, frames_needed=10, marker_loss_timeout=0.5)
+    detector = FiducialDetector(cam, display=True, frames_needed=10, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
 
     # Mission upload and formation

@@ -74,7 +74,7 @@ class DRoverLEDs():
 
             # set color
             self.pixels.fill(self.main_color)
-            time.sleep(1.00/self.speed)
+            time.sleep(1.25/self.speed)
             self.pixels.fill(self.secondary_color)
             time.sleep(0.25/self.speed)
             self.pixels.fill(self.main_color)
