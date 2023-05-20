@@ -15,6 +15,7 @@ except:
         fill = lambda *a: None
     class neopixel():
         NeoPixel = lambda *a: mock_neopixel()
+        RGB = None
         
 
 class DRoverLEDs():
@@ -46,7 +47,7 @@ class DRoverLEDs():
         self._lock = Lock()
         self._rgb_mode = False
         
-        self.pixels = neopixel.NeoPixel(pin, count)
+        self.pixels = neopixel.NeoPixel(pin, count, neopixel.RGB)
         self.pixels.fill(self.main_color)
         
         self._main_thread = Thread(target=self._run, daemon=True)
