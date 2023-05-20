@@ -5,7 +5,7 @@ import time
 import random
 import numpy as np
 from loguru import logger as log
-from drover import Drone, MissionController, Waypoint, FiducialDetector, OpenCVCamera, DRoverLEDs, DRoverComms
+from drover import Drone, MissionController, Waypoint, FiducialDetector, OpenCVCamera, RaspberryPiCamera, DRoverLEDs, DRoverComms
 
 
 # init pretty logging
@@ -37,8 +37,8 @@ def main(drone: Drone):
                               [0,       0,      1]], dtype=np.float32)
 
     dist_coeffs = np.array([.1868, -0.3992, 0, 0, 0], dtype=np.float32)
-    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
-
+    # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
+    cam = RaspberryPiCamera(camera_matrix, dist_coeffs)
     detector = FiducialDetector(cam, display=True, frames_needed=10, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
 
