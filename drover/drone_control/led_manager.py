@@ -36,7 +36,7 @@ class DRoverLEDs():
     RTL_COLOR     = ORANGE
     
     def __init__(self, drone: Drone, pin=board.D10, count=18, speed=2):
-        self.main_color = self.WHITE
+        self.main_color = self.BLACK
         self.secondary_color = self.BLACK
         self.speed = speed
         
@@ -47,7 +47,7 @@ class DRoverLEDs():
         self._lock = Lock()
         self._rgb_mode = False
         
-        self.pixels = neopixel.NeoPixel(pin, count, neopixel.RGB)
+        self.pixels = neopixel.NeoPixel(pin, count, auto_write=True)
         self.pixels.fill(self.main_color)
         
         self._main_thread = Thread(target=self._run, daemon=True)
@@ -79,23 +79,24 @@ class DRoverLEDs():
             # if idle have funsies
             if state.armed:
                 pix_min, pix_max = 0, self._count
-                self._rgb_mode = True
+                self._rgb_mode = False
             else:
                 pix_min, pix_max = self._count//3, self._count*2//3
-                self._rgb_mode = False
+                self._rgb_mode = True
+
 
             # set main/secondary color
             with self._lock:
-                 self.pixels[pix_min:pix_max] = self.main_color
+                 self.pixels[pix_min:pix_max] = [self.main_color]*(pix_max-pix_min)
             time.sleep(1.25/self.speed)
             with self._lock:
-                self.pixels[pix_min:pix_max] = self.secondary_color
+                self.pixels[pix_min:pix_max] = [self.secondary_color]*(pix_max-pix_min)
             time.sleep(0.25/self.speed)
             with self._lock:
-                self.pixels[pix_min:pix_max] = self.main_color
+                self.pixels[pix_min:pix_max] = [self.main_color]*(pix_max-pix_min)
             time.sleep(0.25/self.speed)
             with self._lock:
-                self.pixels[pix_min:pix_max] = self.secondary_color
+                self.pixels[pix_min:pix_max] = [self.secondary_color]*(pix_max-pix_min)
             time.sleep(0.25/self.speed)
 
     def _run_rgb(self):
@@ -103,13 +104,13 @@ class DRoverLEDs():
         while True:
             if not self._rgb_mode:
                 time.sleep(0.1)
-            
-            r, g, b = colorsys.hsv_to_rgb( (time.time()/2/self.speed) % 1 )
-            self.pixels[0:self._count//3] = (int(r*255),int(g*255),int(b*255))
-            self.pixels[self._count*2//3:-1] = (int(r*255),int(g*255),int(b*255))
-            time.sleep(1.0/255) 
-            
-                
+                continue
+
+            r, g, b = colorsys.hsv_to_rgb( (time.time()/2/self.speed) % 1, 1, 1 )
+            with self._lock:
+                self.pixels[0:self._count//3] = [(int(r*255),int(g*255),int(b*255))]*(self._count//3)
+                self.pixels[self._count*2//3:self._count] = [(int(r*255),int(g*255),int(b*255))]*(self._count//3)
+            time.sleep(1.0/255)
 
     def flash_color(self, color, duration=1):
         self._last_flash_call = time.time()
