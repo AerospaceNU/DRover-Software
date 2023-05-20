@@ -13,7 +13,8 @@ if __name__ == "__main__":
                               [0,       0,      1]], dtype=np.float32)
 
     dist_coeffs = np.array([.1868, -0.3992, 0, 0, 0], dtype=np.float32)
-    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
+    # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
+    cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30, fourcc="MJPG")
 
     detector = FiducialDetector(camera=cam, display=True)
 

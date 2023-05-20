@@ -129,7 +129,7 @@ class FiducialDetector():
             frame = self.camera.get_frame()
             if frame is None or frame.size == 0:
                 continue
-            log.debug(f"{frame.shape}")
+            #log.debug(f"{frame.shape}")
             corners, ids, rejected = detector.detectMarkers(frame)
 
             # continue if no markers found
