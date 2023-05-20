@@ -60,7 +60,7 @@ class MissionController():
 
     def set_waypoints(self, waypoints: List[Waypoint]):
         """ (Re)sets the waypoint list """
-        self._waypoints = waypoints.copy()
+        self._waypoints = waypoints
         
 ##########
 # Mission helpers
@@ -96,10 +96,12 @@ class MissionController():
                 
         self._drone.upload_mission_latlon(mission_list)
 
-
     def goto_simple_waypoint(self, waypoint):
         """ Handles a simple goto waypoint without marker """    
         self._drone.goto(waypoint.x, waypoint.y, waypoint.alt, use_latlon=waypoint.use_latlon)
+        self._drone.send_statustext(f"At marker {waypoint.aruco_id}")
+        if self._leds:
+            self._leds.flash_color(DRoverLEDs.GREEN, 2*waypoint.wait_time)
         time.sleep(waypoint.wait_time)
         if waypoint.land:
             self._drone.land()
@@ -156,6 +158,9 @@ class MissionController():
         goal = (xz_displacement/dist_away) * (dist_away-waypoint.marker_avoid_dist)
         
         self._drone.goto(goal[1], goal[0], 0, relative=True)
+        self._drone.send_statustext(f"At marker {waypoint.aruco_id}")
+        if self._leds:
+            self._leds.flash_color(DRoverLEDs.GREEN, 2*waypoint.wait_time)
         time.sleep(waypoint.wait_time)
         if waypoint.land:
             self._drone.land()

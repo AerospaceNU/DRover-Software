@@ -61,7 +61,7 @@ def main(drone: Drone):
     if msg.param1 == 0:
         log.success("Starting with default args...")
         while not mc.fiducial_search_mission(detector, 
-                                end_radius=40, 
+                                end_radius=30, 
                                 speed=4, 
                                 laps=4, 
                                 max_dps=10, 

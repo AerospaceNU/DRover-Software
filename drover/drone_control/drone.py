@@ -26,7 +26,8 @@ class Drone():
                  connection_string="udpin:0.0.0.0:14551",
                  baudrate=115200,
                  max_speed=750,
-                 max_accel=50):
+                 max_accel=50,
+                 location_tolerance=0.4):
         """Construct a new Drone object and connect to a mavlink sink/source"""
 
         # init variables
@@ -37,6 +38,7 @@ class Drone():
         self._max_accel = max_accel
         self._prev_orbit_args = None 
         self._mav_callbacks = []
+        self.location_tolerance = location_tolerance
 
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
@@ -142,7 +144,8 @@ class Drone():
                           param2=0, param3=0,
                           param4=0, param5=0,
                           param6=0, param7=0,
-                          wait_ack=False):
+                          wait_ack=False,
+                          retries=2):
         """ Send a command to the drone """
 
         self.mav_conn.mav.command_long_send(
@@ -165,11 +168,16 @@ class Drone():
                                 type='COMMAND_ACK',
                                 condition=f'COMMAND_ACK.command=={command}',
                                 blocking=True, timeout=1)
+            
+            if retries > 0 and (ack is None or ack.result != mavlink.MAV_RESULT_ACCEPTED):
+                log.debug(f"Retrying command {command}...")
+                return self.send_command_long(command, param1, param2, param3, param4, 
+                                       param5, param6, param7, 
+                                       wait_ack, retries-1)
+                
             if ack is None:
                 log.warning(f"Failed to receive ack for command {command}")
                 return False
-            # log.debug(f"Received ack for command {command} "
-            #           f"with result {ack.result}")
             return ack.result == mavlink.MAV_RESULT_ACCEPTED
 
         return True
@@ -209,6 +217,15 @@ class Drone():
         if not ret:
             log.warning(f"Failed to set message rate ({msg_id}, {hz}hz)")
 
+    def send_statustext(self, msg: str, severity=mavlink.MAV_SEVERITY_NOTICE):
+        """ Sends a status message to all GCS """
+        if len(msg) > 50:
+            log.warning(f"Status msg truncated (len {len(msg)})")
+            msg = msg[:50]
+            
+        self.mav_conn.mav.statustext_send(severity, msg)
+
+
 ##################
 # Logic functions
 ##################
@@ -244,8 +261,8 @@ class Drone():
                 & mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
             pass
 
-    def at_location(self, x, y, z=None, use_latlon=False, tolerance=1.0):
-        """ Returns if we are `tolerance` meters from the provided location.
+    def at_location(self, x, y, z=None, use_latlon=False):
+        """ Returns if we are `self.location_tolerance` meters from the provided location.
             Note with lat/lon the alt handling stuff is wonk"""
         if use_latlon:
             x, y = self.latlon_to_NEU(x, y)
@@ -253,12 +270,12 @@ class Drone():
         xcur, ycur, zcur = self.get_location()
 
         if z is None:
-            return (abs(xcur - x) < tolerance and 
-                    abs(ycur - y) < tolerance)
+            return (abs(xcur - x) < self.location_tolerance and 
+                    abs(ycur - y) < self.location_tolerance)
         else:
-            return (abs(xcur - x) < tolerance and
-                    abs(ycur - y) < tolerance and
-                    abs(zcur - z) < tolerance)
+            return (abs(xcur - x) < self.location_tolerance and
+                    abs(ycur - y) < self.location_tolerance and
+                    abs(zcur - z) < self.location_tolerance)
 
     def is_moving(self, min_speed=5, min_yawspeed=0.1):
         """ Checks if the drone is moving (speed is cm/s, rot in rad/s) """
