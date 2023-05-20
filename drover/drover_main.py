@@ -48,7 +48,8 @@ def main(drone: Drone):
     waypoints = comms.get_full_mission()
     log.success(f"Mission uploaded")
 
-    mc = MissionController(drone, waypoints)
+    mc = MissionController(drone, waypoints, leds)
+    mc.upload_waypoints()
     
     # add random offsets to waypoints
     # random.seed(2)

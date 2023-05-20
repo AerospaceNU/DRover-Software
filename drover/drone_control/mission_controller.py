@@ -9,7 +9,7 @@ import numpy as np
 from loguru import logger as log
 from dataclasses import dataclass
 from typing import List
-from drover import Drone, FiducialDetector, ArucoMarker
+from drover import Drone, FiducialDetector, ArucoMarker, DRoverLEDs
 
 @dataclass
 class Waypoint():
@@ -44,6 +44,7 @@ class Waypoint():
 class MissionController():
     def __init__(self, drone: Drone, 
                  waypoints: List[Waypoint] = None,
+                 leds: DRoverLEDs = None, 
                  use_home_rally_point: bool = True):
         """Class handling drone missions
 
@@ -52,7 +53,8 @@ class MissionController():
             waypoints (List[Waypoint]): List of waypoints in the mission
             use_home_rally_point (bool, optional): Sets a rally point before taking off. Defaults to True.
         """
-        self._waypoints = waypoints.copy()
+        self._waypoints = waypoints
+        self._leds = leds
         self._drone = drone
         self._use_home_rally_point = use_home_rally_point
 
@@ -79,6 +81,11 @@ class MissionController():
             self._drone.param_set("RALLY_INCL_HOME", 0)
         
         # Upload waypoints as a mission for GCS visualization purposes
+        self.upload_waypoints(self)
+        return True
+
+    def upload_waypoints(self):
+        """ Uploads the mission to the drone for GCS visualization """
         mission_list = []
         for wp in self._waypoints:
             if wp.use_latlon:
@@ -88,8 +95,7 @@ class MissionController():
                 mission_list.append((lat, lon, wp.alt))
                 
         self._drone.upload_mission_latlon(mission_list)
-        
-        return True
+
 
     def goto_simple_waypoint(self, waypoint):
         """ Handles a simple goto waypoint without marker """    

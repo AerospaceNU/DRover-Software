@@ -162,13 +162,13 @@ class GCSComms():
         mavlink.MAV_SEVERITY_CRITICAL:50,  # CRITICAL
         mavlink.MAV_SEVERITY_ERROR:40,     # ERROR
         mavlink.MAV_SEVERITY_WARNING:30,   # WARNING
-        mavlink.MAV_SEVERITY_NOTICE:20,    # INFO,
+        mavlink.MAV_SEVERITY_NOTICE:30,    # WARNING,
         mavlink.MAV_SEVERITY_INFO:20,      # INFO
         mavlink.MAV_SEVERITY_DEBUG:10,     # DEBUG
     }
     
     def __init__(self, 
-                 connection_string="udpin:localhost:14551", 
+                 connection_string, 
                  baudrate=115200):
         """ Class that allows for sending custom MAVLink messages (ex MAV_CMD_USER_1) """
         self._last_heartbeat = 0
@@ -199,14 +199,14 @@ class GCSComms():
                 log.log(self.MAV2LOG_SEVERITY[msg.severity], msg.text)
 
             # send heartbeat
-            # if time.time()-self._last_heartbeat > 0.5:
-            #     self.mav_conn.mav.heartbeat_send(
-            #         mavlink.MAV_TYPE_GCS,
-            #         mavlink.MAV_AUTOPILOT_INVALID,
-            #         0,
-            #         0,
-            #         mavlink.MAV_STATE_ACTIVE)
-            #     self._last_heartbeat = time.time()
+            if time.time()-self._last_heartbeat > 0.5:
+                self.mav_conn.mav.heartbeat_send(
+                    mavlink.MAV_TYPE_GCS,
+                    mavlink.MAV_AUTOPILOT_INVALID,
+                    0,
+                    0,
+                    mavlink.MAV_STATE_ACTIVE)
+                self._last_heartbeat = time.time()
 
     def send_command_int(self, command, param1:float=0,
                           param2:float=0, param3:float=0,
