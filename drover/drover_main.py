@@ -39,7 +39,7 @@ def main(drone: Drone):
     dist_coeffs = np.array([0.09362, 0.41978, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs)
     # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30, fourcc="MJPG")
-    detector = FiducialDetector(cam, display=True, frames_needed=10, marker_loss_timeout=0.5)
+    detector = FiducialDetector(cam, display=True, frames_needed=5, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE, priority=False))
 
     # Mission upload and formation

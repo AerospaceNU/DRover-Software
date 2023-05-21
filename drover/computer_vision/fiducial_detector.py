@@ -31,7 +31,7 @@ class FiducialDetector():
                  display: bool = False,
                  frames_needed: int = 3,
                  marker_loss_timeout: float = 0.5,
-                 display_resize: float = (720, 540), # 4k to 480i ish
+                 display_resize: float = (720, 405), # 4k to 480i ish
                  max_callback_rate: float = 10):
 
         # get abstracted camera object to retrieve frames
