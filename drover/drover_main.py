@@ -32,6 +32,12 @@ def main(drone: Drone):
     # setup
     leds = DRoverLEDs(drone)
 
+    # Mission upload and formation
+    log.info("Waiting for mission upload...")
+    comms = DRoverComms(drone)
+    waypoints = comms.get_full_mission()
+    log.success(f"Mission uploaded")
+
     camera_matrix = np.array([[1499.09,  0,      968.87],
                               [0,       1498.23, 568.92],
                               [0,       0,      1]], dtype=np.float32)
@@ -41,12 +47,6 @@ def main(drone: Drone):
     # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30, fourcc="MJPG")
     detector = FiducialDetector(cam, display=True, frames_needed=5, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE, priority=False))
-
-    # Mission upload and formation
-    log.info("Waiting for mission upload...")
-    comms = DRoverComms(drone)
-    waypoints = comms.get_full_mission()
-    log.success(f"Mission uploaded")
 
     mc = MissionController(drone, waypoints, leds)
     mc.upload_waypoints()

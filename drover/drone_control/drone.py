@@ -523,7 +523,7 @@ class Drone():
 
         if not taking_off:
             # TODO handle if already in air?
-            log.error("Failed to takeoff")
+            log.warning("Failed to takeoff")
             return False
 
         if blocking:
