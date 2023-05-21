@@ -32,11 +32,11 @@ def main(drone: Drone):
     # setup
     leds = DRoverLEDs(drone)
 
-    camera_matrix = np.array([[1499.09,  0,      952.114],
-                              [0,       1498.23, 512.087],
+    camera_matrix = np.array([[1499.09,  0,      968.87],
+                              [0,       1498.23, 568.92],
                               [0,       0,      1]], dtype=np.float32)
 
-    dist_coeffs = np.array([0.09362, 0.41978, 0, 0, 0], dtype=np.float32)
+    dist_coeffs = np.array([0.09383, 0.41789, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs)
     # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30, fourcc="MJPG")
     detector = FiducialDetector(cam, display=True, frames_needed=5, marker_loss_timeout=0.5)
