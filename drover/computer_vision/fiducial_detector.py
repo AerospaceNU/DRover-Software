@@ -32,7 +32,8 @@ class FiducialDetector():
                  frames_needed: int = 3,
                  marker_loss_timeout: float = 0.5,
                  display_resize: float = (720, 405), # 4k to 480i ish
-                 max_callback_rate: float = 10):
+                 max_callback_rate: float = 10,
+                 max_fps: float = 20):
 
         # get abstracted camera object to retrieve frames
         if camera is None:
@@ -54,6 +55,8 @@ class FiducialDetector():
         self._last_callbacks = 0
         self.display_resize = display_resize
         self._fullscreen = fullscreen
+        self._last_loop = 0
+        self.max_fps = 1/max_fps
 
         # Run the camera thread
         self._camera_thread = Thread(target=self._run, daemon=True)
@@ -126,18 +129,25 @@ class FiducialDetector():
         detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
         while True:
+            # force an FPS
+            while time.time() < (self._last_loop+self.max_fps):
+                time.sleep(0.001)
+            
             frame = self.camera.get_frame()
             if frame is None or frame.size == 0:
                 continue
-            #log.debug(f"{frame.shape}")
+
             corners, ids, rejected = detector.detectMarkers(frame)
 
             # continue if no markers found
             if len(corners) == 0:
                 if self._display:
                     resized = cv2.resize(frame, self.display_resize, interpolation = cv2.INTER_AREA)
+                    fps = f"{1/(time.time()-self._last_loop):.1f}"
+                    cv2.putText(resized, fps, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 255, 0), 2, cv2.LINE_AA)
                     cv2.imshow('aruco', resized)
                     cv2.waitKey(1)
+                self._last_loop = time.time()
                 continue
 
             # update markers
@@ -171,8 +181,9 @@ class FiducialDetector():
                 if self._fullscreen:
                     cv2.namedWindow("aruco", cv2.WINDOW_NORMAL)
                     cv2.setWindowProperty("aruco", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                fps = f"{1/(time.time()-self._last_loop):.1f}"
+                cv2.putText(resized, fps, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 255, 0), 2, cv2.LINE_AA)
                 cv2.imshow("aruco", resized)
-                cv2.imshow('aruco', resized)
                 cv2.waitKey(1)
 
             # run callbacks
@@ -183,3 +194,5 @@ class FiducialDetector():
                 if len(markers) > 0:
                     for handler in self._marker_callbacks:
                         handler(markers)
+
+            self._last_loop = time.time()

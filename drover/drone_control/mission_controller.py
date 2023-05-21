@@ -81,7 +81,7 @@ class MissionController():
             self._drone.param_set("RALLY_INCL_HOME", 0)
         
         # Upload waypoints as a mission for GCS visualization purposes
-        self.upload_waypoints(self)
+        self.upload_waypoints()
         return True
 
     def upload_waypoints(self):

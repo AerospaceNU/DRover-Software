@@ -24,13 +24,15 @@ class RaspberryPiCamera(Camera):
         self._dist_coeffs = dist_coeffs
 
         self.picam2 = Picamera2()
-        self.picam2.configure(self.picam2.create_preview_configuration(main={"format": 'XRGB8888', 'size': (width, height)}))
+        self.picam2.configure(self.picam2.create_preview_configuration(
+                                main={"format": 'BGR888', 'size': (width, height)}, 
+                                buffer_count=1))
         self.picam2.start()
 
     def get_frame(self) -> np.ndarray:
         """ Get the latest image from the camera """
         image = self.picam2.capture_array()
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2RGB)
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         return image
 
     def get_camera_matrix(self):
