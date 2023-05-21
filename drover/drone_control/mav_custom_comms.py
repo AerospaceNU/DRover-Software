@@ -175,7 +175,7 @@ class GCSComms():
         self._last_heartbeat = 0
         self._lock = Lock()
         
-        self.mav_conn: mavutil.mavfile = mavutil.mavlink_connection(
+        self._mav_conn: mavutil.mavfile = mavutil.mavlink_connection(
                                             connection_string,
                                             baud=baudrate,
                                             dialect="ardupilotmega",
@@ -189,7 +189,7 @@ class GCSComms():
         while True:
             # clear buffer
             self._lock.acquire()
-            msg = self.mav_conn.recv_msg()
+            msg = self._mav_conn.recv_msg()
             self._lock.release()
             if msg is None:
                 continue
@@ -201,7 +201,7 @@ class GCSComms():
 
             # send heartbeat
             if time.time()-self._last_heartbeat > 0.5:
-                self.mav_conn.mav.heartbeat_send(
+                self._mav_conn.mav.heartbeat_send(
                     mavlink.MAV_TYPE_GCS,
                     mavlink.MAV_AUTOPILOT_INVALID,
                     0,
@@ -216,7 +216,7 @@ class GCSComms():
                           wait_ack=False):
         """ Send a command to the companion computer """
         self._lock.acquire()
-        self.mav_conn.mav.command_int_send(
+        self._mav_conn.mav.command_int_send(
             1,  # target_system
             mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,  # target_component
             0, # frame
@@ -232,7 +232,7 @@ class GCSComms():
             int(z))
 
         if wait_ack:
-            ack = self.mav_conn.recv_match(
+            ack = self._mav_conn.recv_match(
                                 type='COMMAND_ACK',
                                 condition=f'COMMAND_ACK.command=={command}',
                                 blocking=True, timeout=2)
@@ -240,6 +240,7 @@ class GCSComms():
             if ack is None:
                 return False
             return ack.result == mavlink.MAV_RESULT_ACCEPTED
+        
         self._lock.release()
         return True
 
@@ -299,3 +300,7 @@ class GCSComms():
         )                
         if not ret:
             log.error(f"No ack from start signal. GLHF")
+
+    def wait_heartbeat(self):
+        with self._lock:
+            self._mav_conn.wait_heartbeat()
