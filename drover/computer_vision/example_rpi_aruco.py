@@ -8,11 +8,11 @@ from drover import FiducialDetector, RaspberryPiCamera
 if __name__ == "__main__":
     # random camera data I pulled from a year ago
     # this should be replaced with camera calibration values
-    camera_matrix = np.array([[2279.2,  0,      919.7696],
-                              [0,       2289.9, 508.1499],
+    camera_matrix = np.array([[1499.09,  0,      952.114],
+                              [0,       1498.23, 512.087],
                               [0,       0,      1]], dtype=np.float32)
 
-    dist_coeffs = np.array([-.4576, 0.3389, 0, 0, 0], dtype=np.float32)
+    dist_coeffs = np.array([0.09362, 0.41978, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1920, height=1080)
 
     detector = FiducialDetector(camera=cam, display=True, display_scale=.5)

@@ -32,15 +32,15 @@ def main(drone: Drone):
     # setup
     leds = DRoverLEDs(drone)
 
-    camera_matrix = np.array([[2600.2,  0,      1621.0],
-                              [0,       2606.2, 1191.8],
+    camera_matrix = np.array([[1499.09,  0,      952.114],
+                              [0,       1498.23, 512.087],
                               [0,       0,      1]], dtype=np.float32)
 
-    dist_coeffs = np.array([.1868, -0.3992, 0, 0, 0], dtype=np.float32)
-    # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=3264, height=2448, fps=15, fourcc="MJPG")
+    dist_coeffs = np.array([0.09362, 0.41978, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs)
+    # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1920, height=1080, fps=30, fourcc="MJPG")
     detector = FiducialDetector(cam, display=True, frames_needed=10, marker_loss_timeout=0.5)
-    detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE))
+    detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE, priority=False))
 
     # Mission upload and formation
     log.info("Waiting for mission upload...")
@@ -80,7 +80,7 @@ def main(drone: Drone):
             time.sleep(5)
 
 if __name__ == "__main__":
-    drone = Drone()
+    drone = Drone(connection_string="/dev/serial0")
     try:
         main(drone)
     except Exception as e:

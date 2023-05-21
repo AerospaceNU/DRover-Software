@@ -40,7 +40,7 @@ Solid {
     }
 
 
-    # while boarder
+    # white boarder
     Shape {
       appearance PBRAppearance {
         baseColor 1 1 1

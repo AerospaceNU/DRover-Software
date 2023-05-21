@@ -131,7 +131,7 @@ class Drone():
     def drain_mavlink_buffer(self):
         """ Drain the mavlink buffer """
         while self.mav_conn.recv_match() is not None:
-            pass
+            time.sleep(0.001)
 
     def print_n_messages(self, n):
         """ Print the next n messages from the drone (blocking) """
@@ -259,7 +259,7 @@ class Drone():
                 type='HEARTBEAT',
                 blocking=True).base_mode
                 & mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-            pass
+            time.sleep(0.001)
 
     def at_location(self, x, y, z=None, use_latlon=False):
         """ Returns if we are `self.location_tolerance` meters from the provided location.

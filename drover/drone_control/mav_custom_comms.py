@@ -143,7 +143,8 @@ class DRoverComms():
         """ Waits for a full mission to be uploaded and returns it """
         while self._num_waypoints == 0 or None in self._waypoints:
             self._drone.drain_mavlink_buffer()
-        
+            time.sleep(0.01)
+
         return self._waypoints
 
     def get_start_signal(self) -> mavlink.MAVLink_command_int_message:
@@ -151,6 +152,7 @@ class DRoverComms():
         self._last_start_msg = None
         while self._last_start_msg == None:
             self._drone.drain_mavlink_buffer()
+            time.sleep(0.01)
             
         return self._last_start_msg
         

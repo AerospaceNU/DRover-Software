@@ -112,7 +112,10 @@ class DRoverLEDs():
                 self.pixels[self._count*2//3:self._count] = [(int(r*255),int(g*255),int(b*255))]*(self._count//3)
             time.sleep(1.0/255)
 
-    def flash_color(self, color, duration=1):
+    def flash_color(self, color, duration=1, priority=True):
+        if not priority and self.secondary_color != self.BLACK:
+            return
+        
         self._last_flash_call = time.time()
         self._flash_duration = duration
         self.secondary_color = color

@@ -18,6 +18,7 @@ front of its name (ex `import .camera`).
 
 ## Creating a service on the RPi
 We want to run `drover_startup.sh` on boot, so we shall create a unix service.
+On DRover I actually discarded using mavproxy here as it takes a good chunk of CPU
 1. Create file `/etc/systemd/system//drover.service` with the following:
 ```
 [Unit]
