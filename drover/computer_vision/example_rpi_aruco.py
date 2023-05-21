@@ -14,8 +14,9 @@ if __name__ == "__main__":
 
     dist_coeffs = np.array([0.09362, 0.41978, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1920, height=1080)
+    res = cam.get_frame().shape
 
-    detector = FiducialDetector(camera=cam, display=True, display_scale=.5)
+    detector = FiducialDetector(camera=cam, display=True)
 
     while True:
         time.sleep(1)
@@ -23,3 +24,4 @@ if __name__ == "__main__":
 
         if markers is not None:
             log.info(f"Markers detected: {len(markers)}\n{markers}")
+            log.debug(f"Resolution: {res[1]}x{res[0]}")

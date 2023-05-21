@@ -153,9 +153,8 @@ class DRoverComms():
         while self._last_start_msg == None:
             self._drone.drain_mavlink_buffer()
             time.sleep(0.01)
-            
+
         return self._last_start_msg
-        
 
 class GCSComms():
     MAV2LOG_SEVERITY = {
