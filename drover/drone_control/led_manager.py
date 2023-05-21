@@ -69,7 +69,7 @@ class DRoverLEDs():
                 self.main_color = self.UNKNOWN_COLOR
 
             if state.mode in ["RTL", "LAND"]:
-                self.secondary_color = self.RTL_COLOR
+                self.flash_color(self.RTL_COLOR, 0.1, False)
 
             # check if we should reset secondary color
             if (time.time()-self._last_flash_call) > self._flash_duration:
@@ -83,7 +83,6 @@ class DRoverLEDs():
             else:
                 pix_min, pix_max = self._count//3, self._count*2//3
                 self._rgb_mode = True
-
 
             # set main/secondary color
             with self._lock:
