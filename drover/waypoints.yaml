@@ -1,10 +1,40 @@
 Waypoint:
+  x: 2
+  y: 0
+  alt: 2
+  wait_time: 1
+  land: True
+  use_latlon: False
+  aruco_id: None
+  aruco2_id: None
+  marker_avoid_dist: 1
+Waypoint2:
+  x: 2
+  y: -5
+  alt: 2
+  wait_time: 1
+  land: True
+  use_latlon: False
+  aruco_id: None
+  aruco2_id: None
+  marker_avoid_dist: 1
+Waypoint3:
+  x: -2
+  y: -5
+  alt: 2
+  wait_time: 1
+  land: True
+  use_latlon: False
+  aruco_id: None
+  aruco2_id: None
+  marker_avoid_dist: 1
+Waypoint4:
   x: 0
   y: 0
-  alt: 0
-  wait_time: 0
-  land: 0
-  use_latlon: 0
-  aruco_id: 0
-  aruco2_id: 0
-  marker_avoid_dist: 0
+  alt: 2
+  wait_time: 1
+  land: True
+  use_latlon: False
+  aruco_id: None
+  aruco2_id: None
+  marker_avoid_dist: 1

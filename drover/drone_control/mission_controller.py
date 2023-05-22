@@ -218,8 +218,8 @@ class MissionController():
         return False
 
     def fiducial_search_mission(self, detector: FiducialDetector, 
-                                start_radius=5, end_radius=20.0, speed=4.0, 
-                                laps=4, max_dps=10, search_yaw=0):
+                                start_radius=5, end_radius=30.0, speed=2.0, 
+                                laps=6, max_dps=5, search_yaw=180-45):
         """ Run a mission that searches for aruco markers at waypoints """
         if not self._pre_mission():
             return False

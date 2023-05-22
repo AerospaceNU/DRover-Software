@@ -65,9 +65,9 @@ class Drone():
         # set stream rates to be faster
         self.set_stream_rate(   4, mavlink.MAV_DATA_STREAM_ALL)
         self.set_message_rate(  1, mavlink.MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN)
-        self.set_message_rate( 15, mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
-        self.set_message_rate( 15, mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
-        self.set_message_rate( 15, mavlink.MAVLINK_MSG_ID_ATTITUDE)
+        self.set_message_rate( 10, mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
+        self.set_message_rate( 10, mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+        self.set_message_rate( 10, mavlink.MAVLINK_MSG_ID_ATTITUDE)
 
         # configure some params
         self.param_set("WPNAV_SPEED", self._max_speed)
@@ -76,6 +76,7 @@ class Drone():
 
         # set the system status to active
         self._mav_state = mavlink.MAV_STATE_ACTIVE
+        self.send_statustext("drover: Drone online")
 
     def _run(self):
         """ Continuously send heartbeats to the drone at 2Hz """
@@ -223,7 +224,7 @@ class Drone():
             log.warning(f"Status msg truncated (len {len(msg)})")
             msg = msg[:50]
             
-        self.mav_conn.mav.statustext_send(severity, msg)
+        self.mav_conn.mav.statustext_send(severity, msg.encode('ascii'))
 
 
 ##################
@@ -255,11 +256,10 @@ class Drone():
         """ Wait for the drone to be disarmed """
         # check the armed bit in the heartbeat
         # https://mavlink.io/en/messages/common.html#HEARTBEAT
-        while (self.mav_conn.recv_match(
-                type='HEARTBEAT',
-                blocking=True).base_mode
-                & mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-            time.sleep(0.001)
+        log.debug("Waiting for disarm...")
+        while (self._state.armed):
+            self.drain_mavlink_buffer()
+            time.sleep(0.01)
 
     def at_location(self, x, y, z=None, use_latlon=False):
         """ Returns if we are `self.location_tolerance` meters from the provided location.
@@ -508,7 +508,10 @@ class Drone():
             mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
             param1=1, wait_ack=True)
 
-        if not armed:
+        if self._state.armed and not armed:
+            log.warning("Taking off while already armed, but takeoff didn't go through")
+            return False
+        elif not armed:
             log.error("Failed to arm drone")
             return False
 
@@ -557,7 +560,7 @@ class Drone():
         while True:
             msg = self.mav_conn.recv_match(type='GLOBAL_POSITION_INT',
                                              blocking=True)
-            if msg.relative_alt / 1000 < 0.1:
+            if msg.relative_alt / 1000 < 0.2:
                 break
 
         log.info("Touchdown")

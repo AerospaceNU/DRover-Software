@@ -56,7 +56,7 @@ class FiducialDetector():
         self.display_resize = display_resize
         self._fullscreen = fullscreen
         self._last_loop = 0
-        self.max_fps = 1/max_fps
+        self.min_period = 1/max_fps
 
         # Run the camera thread
         self._camera_thread = Thread(target=self._run, daemon=True)
@@ -130,8 +130,8 @@ class FiducialDetector():
 
         while True:
             # force an FPS
-            while time.time() < (self._last_loop+self.max_fps):
-                time.sleep(0.001)
+            # while time.time() < (self._last_loop+self.max_period):
+            #     time.sleep(0.001)
             
             frame = self.camera.get_frame()
             if frame is None or frame.size == 0:
@@ -144,10 +144,12 @@ class FiducialDetector():
                 if self._display:
                     resized = cv2.resize(frame, self.display_resize, interpolation = cv2.INTER_AREA)
                     fps = f"{1/(time.time()-self._last_loop):.1f}"
+                    self._last_loop = time.time()
                     cv2.putText(resized, fps, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 255, 0), 2, cv2.LINE_AA)
                     cv2.imshow('aruco', resized)
                     cv2.waitKey(1)
-                self._last_loop = time.time()
+                else:
+                    self._last_loop = time.time()                    
                 continue
 
             # update markers
@@ -182,9 +184,12 @@ class FiducialDetector():
                     cv2.namedWindow("aruco", cv2.WINDOW_NORMAL)
                     cv2.setWindowProperty("aruco", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
                 fps = f"{1/(time.time()-self._last_loop):.1f}"
+                self._last_loop = time.time()
                 cv2.putText(resized, fps, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 255, 0), 2, cv2.LINE_AA)
                 cv2.imshow("aruco", resized)
                 cv2.waitKey(1)
+            else:
+                self._last_loop = time.time()
 
             # run callbacks
             if (self._marker_callbacks and 
@@ -195,4 +200,4 @@ class FiducialDetector():
                     for handler in self._marker_callbacks:
                         handler(markers)
 
-            self._last_loop = time.time()
+            

@@ -48,6 +48,7 @@ def main(drone: Drone):
     comms = DRoverComms(drone)
     waypoints = comms.get_full_mission()
     log.success(f"Mission uploaded")
+    drone.send_statustext("drover: Mission uploaded")
 
     mc = MissionController(drone, waypoints, leds)
     mc.upload_waypoints()
@@ -59,14 +60,10 @@ def main(drone: Drone):
         
     # run mission
     msg = comms.get_start_signal()
+    drone.send_statustext("drover: Starting mission...")
     if msg.param1 == 0:
         log.success("Starting with default args...")
-        while not mc.fiducial_search_mission(detector, 
-                                end_radius=30, 
-                                speed=4, 
-                                laps=4, 
-                                max_dps=10, 
-                                search_yaw=180-30):
+        while not mc.fiducial_search_mission(detector):
             time.sleep(5)
             
     else:

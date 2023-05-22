@@ -46,7 +46,15 @@ class GCShell(cmd.Cmd):
 
         for wpt in waypoint_dict.values():
             sl = list(wpt.values())
-            waypoint_list.append(Waypoint(sl[0],sl[1],sl[2],sl[3],sl[4],sl[5],sl[6],sl[7],sl[8]))
+            waypoint_list.append(Waypoint(x=float(sl[0]),
+                                          y=float(sl[1]),
+                                          alt=float(sl[2]),
+                                          wait_time=float(sl[3]),
+                                          land=bool(sl[4]),
+                                          use_latlon=bool(sl[5]),
+                                          aruco_id=None if sl[6] == 'None' else int(sl[6]),
+                                          aruco2_id=None if sl[7] == 'None' else int(sl[7]),
+                                          marker_avoid_dist=float(sl[8])))
        
         self._comms.send_waypoints(waypoint_list)
 
