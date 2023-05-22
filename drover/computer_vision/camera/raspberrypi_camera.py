@@ -25,14 +25,13 @@ class RaspberryPiCamera(Camera):
 
         self.picam2 = Picamera2()
         self.picam2.configure(self.picam2.create_preview_configuration(
-                                main={"format": 'BGR888', 'size': (width, height)}, 
+                                main={"format": 'RGB888', 'size': (width, height)}, 
                                 buffer_count=1))
         self.picam2.start()
 
     def get_frame(self) -> np.ndarray:
         """ Get the latest image from the camera """
-        image = self.picam2.capture_array()
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        image = self.picam2.capture_array(wait=True)
         return image
 
     def get_camera_matrix(self):
