@@ -465,6 +465,15 @@ class Drone():
                 param2=4,
                 wait_ack=True)
 
+    def set_loiter_mode(self):
+        """ Set the drone to loiter mode """
+        # https://ardupilot.org/dev/docs/mavlink-get-set-flightmode.html
+        return self.send_command_long(
+                mavlink.MAV_CMD_DO_SET_MODE,
+                param1=mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                param2=5,
+                wait_ack=True)
+
     def rtl(self):
         """ Set the drone to RTL mode """
         return self.send_command_long(
@@ -560,7 +569,7 @@ class Drone():
         while True:
             msg = self.mav_conn.recv_match(type='GLOBAL_POSITION_INT',
                                              blocking=True)
-            if msg.relative_alt / 1000 < 0.2:
+            if msg.relative_alt / 1000 < 0.2 or not self._state.armed:
                 break
 
         log.info("Touchdown")
@@ -747,10 +756,13 @@ class Drone():
         start_normal_to_circle = towards_circle/dist_to_circle
         closest_start_point = circle_center - start_normal_to_circle*radius
 
+        #convert to lat/lon so we can use the above_terrain features
+        cp_latlon = self.NEU_to_latlon(*closest_start_point)
+
         # fly to circle if not already on it
         # TODO set yaw here too so we dont double back if in the circle
         if np.sqrt(np.sum((location-closest_start_point)**2)) > 1:
-            ret = self.goto(*closest_start_point, up, stop_function=stop_function)
+            ret = self.goto(cp_latlon, up, stop_function=stop_function, use_latlon=True)
             if not ret:
                 self._prev_orbit_args = (north, east, up, radius, yaw, laps, 
                                            speed, ccw, spiral_out_per_lap, 
@@ -760,7 +772,7 @@ class Drone():
 
         if laps >= 0.5:
             log.debug(f"Starting circle around ({north:.2f}, {east:.2f}, {up:.2f}) with radius {radius:.2f}m")
-
+            
         # loop until enough laps have completed
         angle_traveled_offset = angle_traveled = last_angle = 0
         spiral_radius = radius

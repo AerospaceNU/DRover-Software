@@ -43,39 +43,39 @@ def main(drone: Drone):
     detector = FiducialDetector(cam, display=True, frames_needed=3, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE, priority=False))
 
-    # Mission upload and formation
-    log.info("Waiting for mission upload...")
-    comms = DRoverComms(drone)
-    waypoints = comms.get_full_mission()
-    log.success(f"Mission uploaded")
-    drone.send_statustext("drover: Mission uploaded")
+    while True:
+        # Mission upload and formation
+        log.info("Waiting for mission upload...")
+        drone.send_statustext("drover: Waiting for mission")
+        comms = DRoverComms(drone)
+        waypoints = comms.get_full_mission()
+        log.success(f"Mission uploaded")
+        drone.send_statustext("drover: Mission uploaded!")
 
-    mc = MissionController(drone, waypoints, leds)
-    mc.upload_waypoints()
-    
-    # add random offsets to waypoints
-    # random.seed(2)
-    # for i, wp in enumerate(waypoints):
-    #     wp.move_random(i*10)
-        
-    # run mission
-    msg = comms.get_start_signal()
-    drone.send_statustext("drover: Starting mission...")
-    if msg.param1 == 0:
-        log.success("Starting with default args...")
-        while not mc.fiducial_search_mission(detector):
-            time.sleep(5)
-            
-    else:
-        log.success("Starting with custom args...")
-        while not mc.fiducial_search_mission(detector, 
-                                   start_radius=msg.param1,
-                                   end_radius=msg.param2, 
-                                   speed=msg.param3, 
-                                   laps=msg.param4, 
-                                   max_dps=msg.x, 
-                                   search_yaw=180-30):
-            time.sleep(5)
+        mc = MissionController(drone, waypoints, leds)
+        mc.upload_waypoints()
+                    
+        # run mission
+        msg = comms.get_start_signal()
+        drone.send_statustext("drover: Starting mission")
+        if msg.param1 == 0:
+            log.success("Starting with default args...")
+            while not mc.fiducial_search_mission(detector):
+                time.sleep(5)
+                
+        else:
+            log.success("Starting with custom args...")
+            while not mc.fiducial_search_mission(detector, 
+                                    start_radius=msg.param1,
+                                    end_radius=msg.param2, 
+                                    speed=msg.param3, 
+                                    laps=msg.param4, 
+                                    max_dps=msg.x, 
+                                    search_yaw=180-30):
+                time.sleep(5)
+                
+        # done (hopefully) with mission so set loiter mode        
+        drone.set_loiter_mode()
 
 if __name__ == "__main__":
     drone = Drone(connection_string="/dev/serial0")

@@ -96,17 +96,18 @@ class MissionController():
                 
         self._drone.upload_mission_latlon(mission_list)
 
-    def goto_simple_waypoint(self, waypoint):
+    def goto_simple_waypoint(self, waypoint, last_waypoint=False):
         """ Handles a simple goto waypoint without marker """    
         self._drone.goto(waypoint.x, waypoint.y, waypoint.alt, use_latlon=waypoint.use_latlon)
         self._drone.send_statustext(f"At marker {waypoint.aruco_id}")
         if self._leds:
-            self._leds.flash_color(DRoverLEDs.GREEN, 2*waypoint.wait_time)
+            self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
         time.sleep(waypoint.wait_time)
         if waypoint.land:
             self._drone.land()
-            time.sleep(waypoint.wait_time)        
-            self._drone.arm_takeoff(waypoint.alt)
+            time.sleep(waypoint.wait_time)   
+            if not last_waypoint:     
+                self._drone.arm_takeoff(waypoint.alt)
 
     def search_for_arucos(self, detector, waypoint, start_radius, end_radius, 
                           speed, laps, max_dps, yaw, backtrack_dist=8):
@@ -151,7 +152,7 @@ class MissionController():
         
         return True
 
-    def goto_seen_marker(self, relative_location, waypoint):
+    def goto_seen_marker(self, relative_location, waypoint, last_waypoint=False):
         """ provided a relative marker location, go to it (minus marker_avoid_dist)"""
         xz_displacement = np.array([relative_location[0], relative_location[2]])
         dist_away = np.linalg.norm(xz_displacement)
@@ -160,12 +161,24 @@ class MissionController():
         self._drone.goto(goal[1], goal[0], 0, relative=True)
         self._drone.send_statustext(f"At marker {waypoint.aruco_id}")
         if self._leds:
-            self._leds.flash_color(DRoverLEDs.GREEN, 2*waypoint.wait_time)
+            self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
         time.sleep(waypoint.wait_time)
         if waypoint.land:
             self._drone.land()
             time.sleep(waypoint.wait_time)        
-            self._drone.arm_takeoff(waypoint.alt)
+            if not last_waypoint: 
+                self._drone.arm_takeoff(waypoint.alt)
+
+    def goto_gate(self, marker1, marker2, waypoint, last_waypoint=False)
+        # TODO make good    
+        self._drone.goto((marker1.location[2]+marker2.location[2])/2, 
+                                (marker1.location[0]+marker1.location[0])/2, 
+                                0, relative=True)
+        self._drone.send_statustext(f"At gate {waypoint.aruco_id}/{waypoint.aruco_id2}")
+        if self._leds:
+            self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
+        if last_waypoint:
+            self._drone.land()
 
 ##########
 # Missions
@@ -226,42 +239,50 @@ class MissionController():
         
         ret = self._drone.arm_takeoff(self._waypoints[0].alt)
         if not ret:
+            self._drone.send_statustext("drover: Failed arm_takeoff")
             return False
 
-        for waypoint in self._waypoints:
+        for i, waypoint in enumerate(self._waypoints):
+            last_waypoint = (i == (len(self._waypoints)-1))
+            
             # if no marker, just go to waypoint and continue
             if waypoint.aruco_id is None:
                 log.info(f"Going to positional waypoint")
-                self.goto_simple_waypoint(waypoint)
+                self.goto_simple_waypoint(waypoint, last_waypoint=last_waypoint)
                 continue
 
             # else if there is a marker, search for it/them
-            found = self.search_for_arucos(detector,
-                                           waypoint,
-                                           start_radius,
-                                           end_radius,
-                                           speed,
-                                           laps,
-                                           max_dps,
-                                           search_yaw)
+            for _ in range(2):
+                found = self.search_for_arucos(detector,
+                                            waypoint,
+                                            start_radius,
+                                            end_radius,
+                                            speed,
+                                            laps,
+                                            max_dps,
+                                            search_yaw)
+                if found:
+                    break
+                log.warning("Retrying search pattern")
+                self._drone.send_statustext("drover: Retrying search")
 
             # if marker(s) found, go there
             marker = detector.get_seen(waypoint.aruco_id)
             marker2 = detector.get_seen(waypoint.aruco2_id)
             if not found:
                 log.error("Marker(s) not found in search area")
+                self._drone.send_statustext("Couldnt find marker, RTLing")
+                if last_waypoint:
+                    self._drone.rtl()
             elif marker is not None and marker2 is not None:
                 log.success(f"Found two markers ({waypoint.aruco_id}, {waypoint.aruco2_id})")
-                # TODO make good    
-                self._drone.goto((marker.location[2]+marker2.location[2])/2, 
-                                     (marker.location[0]+marker.location[0])/2, 
-                                     0, relative=True)
+                self.goto_gate(marker, marker2, waypoint, last_waypoint=last_waypoint)
             elif marker is not None:
                 log.success(f"Found single marker ({waypoint.aruco_id})")
-                self.goto_seen_marker(marker.location, waypoint)
+                self.goto_seen_marker(marker.location, waypoint, last_waypoint=last_waypoint)
             elif marker2 is not None:
                 log.success(f"Found single marker ({waypoint.aruco2_id})")
-                self.goto_seen_marker(marker2.location, waypoint)
+                self.goto_seen_marker(marker2.location, waypoint, last_waypoint=last_waypoint)
             else:
                 log.warning("Marker(s) lost after seen in search area")
 
@@ -269,6 +290,6 @@ class MissionController():
             time.sleep(waypoint.wait_time)
 
         # done with waypoints, go home and land
-        self._drone.rtl()
-        self._drone.wait_disarmed()
+        self._drone.land()
+        self._drone.set_loiter_mode()
         return True
