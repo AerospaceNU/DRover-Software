@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import time
 import navpy
 import numpy as np
@@ -43,6 +44,7 @@ class Drone():
         # setup vehicle communication connection
         # https://mavlink.io/en/mavgen_python/#setting_up_connection
         log.info(f"Connecting to drone on {connection_string}")
+        os.environ["MAVLINK20"] = "1" # force mavlink 2.0 hopefully
         self.mav_conn: mavutil.mavfile = mavutil.mavlink_connection(
                                                   connection_string,
                                                   baud=baudrate,
@@ -762,7 +764,7 @@ class Drone():
         # fly to circle if not already on it
         # TODO set yaw here too so we dont double back if in the circle
         if np.sqrt(np.sum((location-closest_start_point)**2)) > 1:
-            ret = self.goto(cp_latlon, up, stop_function=stop_function, use_latlon=True)
+            ret = self.goto(*cp_latlon, up, stop_function=stop_function, use_latlon=True)
             if not ret:
                 self._prev_orbit_args = (north, east, up, radius, yaw, laps, 
                                            speed, ccw, spiral_out_per_lap, 

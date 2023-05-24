@@ -24,7 +24,7 @@ class Waypoint():
     use_latlon: bool = False
     aruco_id: int = None
     aruco2_id: int = None
-    marker_avoid_dist: float = 1.0
+    marker_avoid_dist: float = 0.5
 
     def move_random(self, dist):
         """ Moves waypoint roughly `dist` m in random direction """
@@ -159,7 +159,7 @@ class MissionController():
         goal = (xz_displacement/dist_away) * (dist_away-waypoint.marker_avoid_dist)
         
         self._drone.goto(goal[1], goal[0], 0, relative=True)
-        self._drone.send_statustext(f"At marker {waypoint.aruco_id}")
+        self._drone.send_statustext(f"drover: at marker {waypoint.aruco_id}")
         if self._leds:
             self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
         time.sleep(waypoint.wait_time)
@@ -169,7 +169,7 @@ class MissionController():
             if not last_waypoint: 
                 self._drone.arm_takeoff(waypoint.alt)
 
-    def goto_gate(self, marker1, marker2, waypoint, last_waypoint=False)
+    def goto_gate(self, marker1, marker2, waypoint, last_waypoint=False):
         # TODO make good    
         self._drone.goto((marker1.location[2]+marker2.location[2])/2, 
                                 (marker1.location[0]+marker1.location[0])/2, 
@@ -265,6 +265,8 @@ class MissionController():
                     break
                 log.warning("Retrying search pattern")
                 self._drone.send_statustext("drover: Retrying search")
+
+            self._drone.send_statustext(f"drover: Found marker {waypoint.aruco_id}")
 
             # if marker(s) found, go there
             marker = detector.get_seen(waypoint.aruco_id)

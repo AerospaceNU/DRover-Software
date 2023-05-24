@@ -71,7 +71,7 @@ def main(drone: Drone):
                                     speed=msg.param3, 
                                     laps=msg.param4, 
                                     max_dps=msg.x, 
-                                    search_yaw=180-30):
+                                    search_yaw=180-90):
                 time.sleep(5)
                 
         # done (hopefully) with mission so set loiter mode        
@@ -83,6 +83,7 @@ if __name__ == "__main__":
         main(drone)
     except Exception as e:
         log.error("Exception caught, RTLing drone...")
+        drone.send_statustext(f"drover: Error {type(e)}") 
         log.exception(e)
         drone.rtl()
     except KeyboardInterrupt as e:
