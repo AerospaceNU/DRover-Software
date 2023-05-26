@@ -109,7 +109,7 @@ class MissionController():
             if not last_waypoint:     
                 self._drone.arm_takeoff(waypoint.alt)
 
-    def search_for_arucos(self, detector, waypoint, start_radius, end_radius, 
+    def spiral_for_arucos(self, detector, waypoint, start_radius, end_radius, 
                           speed, laps, max_dps, yaw, backtrack_dist=8):
         """ Search for aruco markers"""
         # determine if we are searching for a single marker or a pair
@@ -179,6 +179,98 @@ class MissionController():
             self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
         if last_waypoint:
             self._drone.land()
+
+    def goto_but_watchout(self, detector, x, y, alt, use_latlon, marker1, marker2=None):
+        """ GOTO but watch for markers and return True if we found and went to it """
+        # define what we are trying to find for stop functions
+        stop_func = lambda: (detector.get_seen(marker1) is not None or
+                            (marker2 is not None and 
+                            detector.get_seen(marker2) is not None))
+        # goto loop
+        while True:
+            not_found = self._drone.goto(x, y, alt, 
+                                        use_latlon=use_latlon,
+                                        stop_function=stop_func)
+            
+            # if saw marker go to it and we done here, else continue journey 
+            if not_found:
+                return False
+            else:
+                success = self.head_to_marker(detector, marker1, marker2)
+                if success:
+                    return True
+                else:
+                    continue
+
+    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, fly_speed=0.5, rot_speed=8, center_tolerance=0.1):
+        """ Gos to a marker by keeping it in sight, doesn't rely on 3d position """
+        if marker1 is not None:
+            marker_id = marker1
+        elif marker2 is not None:
+            marker_id = marker2
+        else:
+            self._drone.send_statustext(f"drover: head to got no markers")
+            return False
+        
+        self._drone.send_statustext(f"drover: heading to marker {marker_id}")
+        self._drone.stop()
+        time.sleep(2)
+        
+        # center on marker
+        max_losses = 4
+        lost_count = 0
+        marker_x_pos = 0
+        while not (0.5-center_tolerance < marker_x_pos < 0.5+center_tolerance):
+            # get marker and handle if not seen
+            marker = detector.get_seen(marker_id)
+            if marker is None:
+                self._drone.stop()
+                lost_count += 1
+                if lost_count > max_losses:
+                    self._drone.send_statustext(f"drover: lost in centering")
+                    return False
+                time.sleep(1)
+                continue
+            
+            # center
+            marker_x_pos = marker.image_location[0]
+            yaw_rate = np.deg2rad(rot_speed) * (1 if marker_x_pos > 0.5 else -1)
+            self._drone.velocity_NEU(0, 0, 0, yaw_rate=yaw_rate)
+            
+        self._drone.send_statustext(f"drover: centered")
+        
+        # head towards marker
+        lost_count = 0
+        dist = dist_away+1
+        while dist > dist_away:
+            # get marker and handle if not seen
+            marker = detector.get_seen(marker_id)
+            if marker is None:
+                self._drone.stop()
+                lost_count += 1
+                if lost_count > max_losses:
+                    self._drone.send_statustext(f"drover: lost in head towards")
+                    return False
+                time.sleep(1)
+                continue
+
+            # head towards
+            location_2d = np.array([marker.location[2], marker.location[0]])
+            dist = np.linalg.norm(location_2d)
+            direction_2d = location_2d/dist
+            velocity = direction_2d * fly_speed
+            self._drone.velocity_NEU(*velocity, 0, yaw_rate=0, body_offset=True)
+
+        self._drone.stop()
+        return True
+
+    def signal_success_and_land(self, waypoint):
+        """ Flashy lights, log, and lands"""
+        if self._leds:
+            self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
+        log.success(f"Found marker {waypoint.aruco_id}")
+        self._drone.send_statustext(f"drover: found marker {waypoint.aruco_id}")
+        self._drone.land()
 
 ##########
 # Missions
@@ -252,8 +344,9 @@ class MissionController():
                 continue
 
             # else if there is a marker, search for it/them
+            detector.enable()
             for _ in range(2):
-                found = self.search_for_arucos(detector,
+                found = self.spiral_for_arucos(detector,
                                             waypoint,
                                             start_radius,
                                             end_radius,
@@ -289,9 +382,126 @@ class MissionController():
                 log.warning("Marker(s) lost after seen in search area")
 
             # wait there a bit
+            detector.disable()
             time.sleep(waypoint.wait_time)
 
-        # done with waypoints, go home and land
+        # done with waypoints, land in case
+        detector.disable()
         self._drone.land()
+        time.sleep(5)
+        self._drone.set_loiter_mode()
+        return True
+
+    def spinny_search_mission(self, 
+                              detector: FiducialDetector, 
+                              spin_dps=20,
+                              second_ring_distance=16
+                              ):
+        """ Run a mission that spinny searches for aruco markers at waypoints 
+            This search that I made up goes to the waypoint, spins, then does
+            a set of spins at 8 points `second_ring_distance` away (first in 
+            cardinal directions, then in-between). """
+            
+        if not self._pre_mission():
+            return False
+        
+        ret = self._drone.arm_takeoff(self._waypoints[0].alt)
+        if not ret:
+            self._drone.send_statustext("drover: Failed arm_takeoff")
+            return False
+
+        # make everything lat/lon
+        for wp in self._waypoints:
+            if not wp.use_latlon:
+                wp.use_latlon = True
+                x, y = self._drone.NEU_to_latlon(wp.x, wp.y)
+                wp.x = x
+                wp.y = y
+
+        # mission time
+        for i, waypoint in enumerate(self._waypoints):
+            last_waypoint = (i == (len(self._waypoints)-1))
+            
+            # if no marker, just go to waypoint and continue
+            if waypoint.aruco_id is None:
+                log.info(f"Going to positional waypoint")
+                self.goto_simple_waypoint(waypoint, last_waypoint=last_waypoint)
+                continue
+
+            # else if there is a marker, search for it/them
+            detector.enable()
+            # go to waypoint, watching for markers
+            found = self.goto_but_watchout(detector, waypoint.x, waypoint.y, waypoint.alt, 
+                                           waypoint.use_latlon,
+                                           marker1=waypoint.aruco_id,
+                                           marker2=waypoint.aruco2_id)
+            if found:
+                self.signal_success_and_land(waypoint)
+                continue
+
+            # marker wasn't found on our way so lets spinny search
+            # define what we are trying to find for spin stop function
+            stop_func = lambda: (detector.get_seen(waypoint.aruco_id) is not None or
+                                (waypoint.aruco2_id is not None and 
+                                detector.get_seen(waypoint.aruco2_id) is not None))
+            # create spin locations list (weird numbering enforces alternation)
+            spins = [(waypoint.x, waypoint.y)]
+            wp_n, wp_e = self._drone.latlon_to_NEU(waypoint.x, waypoint.y)
+            for i in [0, 2, 4, 6, 7, 1, 3, 5]:
+                spin_n = second_ring_distance * np.cos(i * np.pi/4) + wp_n
+                spin_e = second_ring_distance * np.sin(i * np.pi/4) + wp_e
+                spin_latlon = self._drone.NEU_to_latlon(spin_n, spin_e)
+                spins.append(spin_latlon)
+
+            # goto spinny locations and spinnn
+            success = False
+            for i, spin_loc in enumerate(spins):
+                self._drone.send_statustext(f"drover: goto spinny {i}")
+                if i != 0:
+                    found = self.goto_but_watchout(detector, *spin_loc, waypoint.alt, 
+                                                waypoint.use_latlon,
+                                                marker1=waypoint.aruco_id,
+                                                marker2=waypoint.aruco2_id)
+                    if found:
+                        success = True
+                        break
+                    
+                # spin
+                not_found = self._drone.spin(spin_dps, stop_function=stop_func)
+                if not_found:
+                    continue
+                # found
+                success = self.head_to_marker(detector, waypoint.aruco_id, waypoint.aruco2_id)
+                if success:
+                    break
+                # found but lost so we spun by it probs, so spin back
+                not_found = self._drone.spin(-spin_dps/2, stop_function=stop_func)
+                if not_found:
+                    continue
+                success = self.head_to_marker(detector, waypoint.aruco_id, waypoint.aruco2_id)
+                # if we saw it again and got there, nice. Otherwise just continue
+                if success:
+                    break
+                continue
+                
+            # Handle the L
+            if not success:
+                if last_waypoint:
+                    self._drone.rtl()
+                log.warning("Failed to find marker")
+                self._drone.send_statustext("drover: exhausted search area")
+                continue
+            
+            # land and wait there a bit
+            time.sleep(waypoint.wait_time)
+            self.signal_success_and_land(waypoint)
+            detector.disable()
+            time.sleep(waypoint.wait_time)
+            if not last_waypoint:
+                self._drone.arm_takeoff(waypoint.alt)
+
+        # done with waypoints, land in case
+        detector.disable()
+        self._drone.wait_disarmed()
         self._drone.set_loiter_mode()
         return True

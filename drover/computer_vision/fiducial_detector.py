@@ -33,7 +33,7 @@ class FiducialDetector():
                  marker_loss_timeout: float = 0.5,
                  display_resize: float = (720, 405), # 4k to 480i ish
                  max_callback_rate: float = 10,
-                 max_fps: float = 20):
+                 max_fps: float = 30):
 
         # get abstracted camera object to retrieve frames
         if camera is None:
@@ -56,6 +56,7 @@ class FiducialDetector():
         self.display_resize = display_resize
         self._fullscreen = fullscreen
         self._last_loop = 0
+        self.enabled = True
         self.min_period = 1/max_fps
 
         # Run the camera thread
@@ -91,7 +92,7 @@ class FiducialDetector():
 
         return (rvec, tvec)
 
-    def get_seen(self, id):
+    def get_seen(self, id) -> ArucoMarker:
         """ Returns an ArucoMarker if seen, otherwise None """
         marker = self._aruco_dict.get(id)
         if (marker is not None and
@@ -120,6 +121,14 @@ class FiducialDetector():
             Function is given a list of seen markers """
         self._marker_callbacks.append(handler_func)
 
+    def enable(self):
+        """ Enable the detector if previously disabled """
+        self._enabled = True
+
+    def disable(self):
+        """ Disable the detector to save battery """
+        self._enabled = False
+
     def _run(self):
         """ Runs the main loop of the program
         """
@@ -129,9 +138,13 @@ class FiducialDetector():
         detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
         while True:
+            if not self.enabled:
+                time.sleep(0.1)
+                continue
+            
             # force an FPS
-            # while time.time() < (self._last_loop+self.max_period):
-            #     time.sleep(0.001)
+            while time.time() < (self._last_loop+self.min_period):
+                time.sleep(0.001)
             
             frame = self.camera.get_frame()
             if frame is None or frame.size == 0:

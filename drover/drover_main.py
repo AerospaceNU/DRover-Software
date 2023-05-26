@@ -5,7 +5,7 @@ import time
 import random
 import numpy as np
 from loguru import logger as log
-from drover import Drone, MissionController, Waypoint, FiducialDetector, OpenCVCamera, RaspberryPiCamera, DRoverLEDs, DRoverComms
+from drover import Drone, MissionController, Waypoint, FiducialDetector, OpenCVCamera, RaspberryPiCamera, SimCamera, DRoverLEDs, DRoverComms
 
 
 # init pretty logging
@@ -39,10 +39,11 @@ def main(drone: Drone):
     dist_coeffs = np.array([0.09383, 0.41789, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1280, height=720)
 
-    # cam = OpenCVCamera(camera_matrix, dist_coeffs, width=1280, height=720, fps=10, fourcc="YUYV")
+    # cam = SimCamera()
     detector = FiducialDetector(cam, display=True, frames_needed=3, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE, priority=False))
-
+    detector.disable()
+    
     while True:
         # Mission upload and formation
         log.info("Waiting for mission upload...")
@@ -60,24 +61,21 @@ def main(drone: Drone):
         drone.send_statustext("drover: Starting mission")
         if msg.param1 == 0:
             log.success("Starting with default args...")
-            while not mc.fiducial_search_mission(detector):
+            while not mc.spinny_search_mission(detector):
                 time.sleep(5)
                 
         else:
             log.success("Starting with custom args...")
-            while not mc.fiducial_search_mission(detector, 
-                                    start_radius=msg.param1,
-                                    end_radius=msg.param2, 
-                                    speed=msg.param3, 
-                                    laps=msg.param4, 
-                                    max_dps=msg.x, 
-                                    search_yaw=180-90):
-                time.sleep(5)
+            while not mc.spinny_search_mission(detector,
+                                               spin_dps=msg.param1,
+                                               second_ring_distance=msg.param2):
+                                               time.sleep(5)
                 
         # done (hopefully) with mission so set loiter mode        
         drone.set_loiter_mode()
 
 if __name__ == "__main__":
+    # drone = Drone()
     drone = Drone(connection_string="/dev/serial0")
     try:
         main(drone)

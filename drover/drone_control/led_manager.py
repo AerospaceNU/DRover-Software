@@ -12,9 +12,11 @@ except:
     class board():
         D10 = 0
     class mock_neopixel():
-        fill = lambda *a: None
+        fill = lambda *a, **k: None
+        __setitem__ = lambda *a, **k: None
+        __getitem__ = lambda *a, **k: None
     class neopixel():
-        NeoPixel = lambda *a: mock_neopixel()
+        NeoPixel = lambda *a, **k: mock_neopixel()
         RGB = None
         
 

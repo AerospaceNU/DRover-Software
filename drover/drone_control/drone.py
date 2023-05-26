@@ -67,9 +67,9 @@ class Drone():
         # set stream rates to be faster
         self.set_stream_rate(   4, mavlink.MAV_DATA_STREAM_ALL)
         self.set_message_rate(  1, mavlink.MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN)
-        self.set_message_rate( 10, mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
-        self.set_message_rate( 10, mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
-        self.set_message_rate( 10, mavlink.MAVLINK_MSG_ID_ATTITUDE)
+        self.set_message_rate( 20, mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
+        self.set_message_rate( 20, mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED)
+        self.set_message_rate( 20, mavlink.MAVLINK_MSG_ID_ATTITUDE)
 
         # configure some params
         self.param_set("WPNAV_SPEED", self._max_speed)
@@ -676,8 +676,8 @@ class Drone():
         while not self.at_location(x, y, use_latlon=use_latlon):
             time.sleep(0.01)
             if stop_function is not None and stop_function():
-                log.debug("Stopped heading to position due to stop function")
-                self.stop()
+                log.debug("Stopped goto due to stop function")
+                self.stop(blocking=False)
                 return False
 
         log.debug("Drone reached target position")
@@ -765,6 +765,8 @@ class Drone():
         # TODO set yaw here too so we dont double back if in the circle
         if np.sqrt(np.sum((location-closest_start_point)**2)) > 1:
             ret = self.goto(*cp_latlon, up, stop_function=stop_function, use_latlon=True)
+            if stop_on_complete:
+                self.stop()
             if not ret:
                 self._prev_orbit_args = (north, east, up, radius, yaw, laps, 
                                            speed, ccw, spiral_out_per_lap, 
@@ -841,4 +843,27 @@ class Drone():
         else:
             return self.orbit(*self._prev_orbit_args)
             
+    def spin(self, speed, rotations=1.0, stop_function=None):
+        """" Spins the drone in place about `rotations` rotations at speed dps. 
+             Returns true if spun successfully without stopping """
+
+        initial_yaw = last_angle = self.get_attitude()[2]
+        angle_traveled_offset = angle_traveled = 0
+        while angle_traveled_offset+angle_traveled < rotations*2*np.pi:
+            if stop_function is not None and stop_function():
+                log.debug("Stopping spin due to stop function")
+                self.stop(blocking=False)
+                return False
+
+            # send yaw rate command
+            self.velocity_NEU(0, 0, 0, yaw_rate=np.deg2rad(speed))
+
+            yaw = self.get_attitude()[2]
+            angle_traveled = initial_yaw-yaw
+            if abs(angle_traveled-last_angle) > np.pi/2:
+                angle_traveled_offset += 2*np.pi
+            last_angle = angle_traveled
+            
+        self.stop()
+        return True
 

@@ -24,6 +24,7 @@ class GCShell(cmd.Cmd):
     
     def __init__(self,
                  comms: GCSComms = GCSComms(connection_string="udpin:127.0.0.1:14551"),
+                #  comms: GCSComms = GCSComms(),
                  completekey: str = "tab", 
                  stdin: IO[str] | None = None, 
                  stdout: IO[str] | None = None):
@@ -108,15 +109,15 @@ class GCShell(cmd.Cmd):
         log.info(wp)
 
     def do_start(self, args):
-        """Starts the mission with configurable values\n(start [start_radius] [end_radius] [speed] [laps] [max_dps])"""
+        """ Starts the mission with configurable values\n(start [spin_dps] [second_ring_distance]) """
         args = [float(x) for x in args.split()]
         
         if len(args) == 0:
-            self._comms.send_start_signal(*args)
-        elif len(args) == 5:
             self._comms.send_start_signal()
+        elif len(args) <= 7:
+            self._comms.send_start_signal(*args)
         else:
-            log.error("start command needs 0 or 5 args")
+            log.error("start command needs 0-7 args")
 
 
     def do_print(self, args):
