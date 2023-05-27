@@ -847,9 +847,9 @@ class Drone():
         """" Spins the drone in place about `rotations` rotations at speed dps. 
              Returns true if spun successfully without stopping """
 
-        initial_yaw = last_angle = self.get_attitude()[2]
-        angle_traveled_offset = angle_traveled = 0
-        while angle_traveled_offset+angle_traveled < rotations*2*np.pi:
+        last_angle = self.get_attitude()[2]
+        angle_traveled = 0
+        while abs(angle_traveled) < rotations*2*np.pi:
             if stop_function is not None and stop_function():
                 log.debug("Stopping spin due to stop function")
                 self.stop(blocking=False)
@@ -859,9 +859,14 @@ class Drone():
             self.velocity_NEU(0, 0, 0, yaw_rate=np.deg2rad(speed))
 
             yaw = self.get_attitude()[2]
-            angle_traveled = initial_yaw-yaw
-            if abs(angle_traveled-last_angle) > np.pi/2:
-                angle_traveled_offset += 2*np.pi
+            delta_yaw = last_angle-yaw
+            if delta_yaw < -np.pi:
+                angle_traveled += delta_yaw + 2*np.pi 
+            elif delta_yaw > np.pi:
+                angle_traveled += delta_yaw - 2*np.pi 
+            else:
+                angle_traveled += delta_yaw
+                
             last_angle = angle_traveled
             
         self.stop()
