@@ -38,8 +38,8 @@ def main(drone: Drone):
 
     dist_coeffs = np.array([0.09383, 0.41789, 0, 0, 0], dtype=np.float32)
     cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1280, height=720)
-
     # cam = SimCamera()
+
     detector = FiducialDetector(cam, display=True, frames_needed=3, marker_loss_timeout=0.5)
     detector.register_marker_callback(lambda l: leds.flash_color(leds.WHITE, priority=False))
     detector.disable()
@@ -47,18 +47,21 @@ def main(drone: Drone):
     while True:
         # Mission upload and formation
         log.info("Waiting for mission upload...")
-        drone.send_statustext("drover: Waiting for mission")
+        drone.send_statustext("drover: waiting for mission")
         comms = DRoverComms(drone)
         waypoints = comms.get_full_mission()
         log.success(f"Mission uploaded")
-        drone.send_statustext("drover: Mission uploaded!")
+        drone.send_statustext("drover: mission uploaded!")
 
         mc = MissionController(drone, waypoints, leds)
         mc.upload_waypoints()
                     
         # run mission
         msg = comms.get_start_signal()
-        drone.send_statustext("drover: Starting mission")
+        if msg.z == int(True):
+            continue
+            
+        drone.send_statustext("drover: starting mission")
         if msg.param1 == 0:
             log.success("Starting with default args...")
             while not mc.spinny_search_mission(detector):

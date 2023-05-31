@@ -1,3 +1,4 @@
+import os
 import time
 import numpy as np
 from threading import Thread, Lock
@@ -11,7 +12,7 @@ Custom commands are as follows (see handler functions for specifics):
 MAV_CMD_USER_1 sets a LAT/LON waypoint, yes I don't care that there is already a protocol for this I'm writing my own (https://mavlink.io/en/services/mission.html)
 MAV_CMD_USER_2 sets an NED waypoint (same as above but N/E instead of LAT/LON)
 MAV_CMD_USER_3 is the start our mission command
-MAV_CMD_USER_4 n/a
+MAV_CMD_USER_4 companion computer reboot signal
 MAV_CMD_USER_5 n/a
 STATUSTEXT is used for sending log stuff but not custom per say
 """
@@ -36,6 +37,8 @@ class DRoverComms():
             self._handle_user2_cmd(msg)
         elif msg.command == mavlink.MAV_CMD_USER_3:
             self._handle_user3_cmd(msg)
+        elif msg.command == mavlink.MAV_CMD_USER_4:
+            self._handle_user4_cmd(msg)
         else:
             self._acknowledge(msg, mavlink.MAV_RESULT_UNSUPPORTED)
               
@@ -116,10 +119,26 @@ class DRoverComms():
             p4: float
             x:  int
             y:  int
-            z:  int
+            z:  int (reset flag)
         """
         self._last_start_msg = msg
         self._acknowledge(msg)  
+
+    def _handle_user4_cmd(self, msg: mavlink.MAVLink_command_int_message):
+        """ reboot computer command
+            p1: n/a
+            p2: n/a
+            p3: n/a
+            p4: n/a
+            x:  n/a
+            y:  n/a
+            z:  must be 12345
+        """
+        if msg.z != 12345:
+            log.warning("Reset command received without magic 12345")
+        self._acknowledge(msg)
+        time.sleep(5)
+        os.system('sudo shutdown -r now')
         
     def _acknowledge(self, msg: mavlink.MAVLink_command_long_message, result = mavlink.MAV_RESULT_ACCEPTED):
         """ Sends a COMMAND_ACK in response to a command """
@@ -296,6 +315,21 @@ class GCSComms():
             int(x),
             int(y),
             int(z),
+            wait_ack=True
+        )                
+        if not ret:
+            log.error(f"No ack from start signal. GLHF")
+
+    def send_reboot(self):
+        ret = self.send_command_int(
+            mavlink.MAV_CMD_USER_4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            int(12345),
             wait_ack=True
         )                
         if not ret:

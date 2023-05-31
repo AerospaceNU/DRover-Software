@@ -114,11 +114,18 @@ class GCShell(cmd.Cmd):
         
         if len(args) == 0:
             self._comms.send_start_signal()
-        elif len(args) <= 7:
+        elif len(args) <= 6:
             self._comms.send_start_signal(*args)
         else:
-            log.error("start command needs 0-7 args")
+            log.error("start command needs 0-6 args")
 
+    def do_reset(self, args):
+        """ Resets the mission """
+        self._comms.send_start_signal(z=True)
+
+    def do_reboot(self, args):
+        """ Restarts the companion computer """
+        self._comms.send_reboot()
 
     def do_print(self, args):
         """ Prints the list of waypoints """
