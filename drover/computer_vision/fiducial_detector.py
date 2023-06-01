@@ -140,6 +140,8 @@ class FiducialDetector():
         while True:
             if not self.enabled:
                 time.sleep(0.1)
+                cv2.imshow('aruco', np.zeros_like(resized))
+                cv2.waitKey(1)
                 continue
             
             # force an FPS

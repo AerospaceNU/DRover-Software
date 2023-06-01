@@ -32,12 +32,21 @@ def main(drone: Drone):
     # setup
     leds = DRoverLEDs(drone)
 
-    camera_matrix = np.array([[1499.09,  0,      968.87],
-                              [0,       1498.23, 568.92],
+    #### 1080 camera
+    camera_matrix = np.array([[1496.2,  0,      962.51],
+                              [0,       1493.7, 542.75],
                               [0,       0,      1]], dtype=np.float32)
 
-    dist_coeffs = np.array([0.09383, 0.41789, 0, 0, 0], dtype=np.float32)
-    cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1280, height=720)
+    dist_coeffs = np.array([0.1161, 0.0606, 0, 0, 0], dtype=np.float32)
+    cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1920, height=1080)
+    #### 720 camera
+    # camera_matrix = np.array([[835.5,  0,      541.84],
+    #                           [0,       834.7, 369.68],
+    #                           [0,       0,      1]], dtype=np.float32)
+
+    # dist_coeffs = np.array([0.1397, -0.1348, 0, 0, 0], dtype=np.float32)
+    # cam = RaspberryPiCamera(camera_matrix, dist_coeffs, width=1280, height=720)
+
     # cam = SimCamera()
 
     detector = FiducialDetector(cam, display=True, frames_needed=3, marker_loss_timeout=0.5)
@@ -74,7 +83,8 @@ def main(drone: Drone):
                                                second_ring_distance=msg.param2):
                                                time.sleep(5)
                 
-        # done (hopefully) with mission so set loiter mode        
+        # done (hopefully) with mission so set loiter mode
+        drone.wait_disarmed()
         drone.set_loiter_mode()
 
 if __name__ == "__main__":

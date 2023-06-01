@@ -78,13 +78,15 @@ class DRoverLEDs():
                 self.secondary_color = self.BLACK
                 self._last_flash_call = float('inf')
 
-            # if idle have funsies
-            if state.armed:
-                pix_min, pix_max = 0, self._count
-                self._rgb_mode = False
-            else:
-                pix_min, pix_max = self._count//3, self._count*2//3
-                self._rgb_mode = True
+            # if idle have funsies (no fun rbg cuz comp rules)
+            pix_min, pix_max = 0, self._count
+            self._rgb_mode = False
+            # if state.armed:
+            #     pix_min, pix_max = 0, self._count
+            #     self._rgb_mode = False
+            # else:
+            #     pix_min, pix_max = self._count//3, self._count*2//3
+            #     self._rgb_mode = True
 
             # set main/secondary color
             with self._lock:

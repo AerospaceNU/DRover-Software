@@ -99,7 +99,7 @@ class MissionController():
     def goto_simple_waypoint(self, waypoint, last_waypoint=False):
         """ Handles a simple goto waypoint without marker """    
         self._drone.goto(waypoint.x, waypoint.y, waypoint.alt, use_latlon=waypoint.use_latlon)
-        self._drone.send_statustext(f"At marker {waypoint.aruco_id}")
+        self._drone.send_statustext(f"At positional waypoint")
         if self._leds:
             self._leds.flash_color(DRoverLEDs.GREEN, 5*waypoint.wait_time)
         time.sleep(waypoint.wait_time)
@@ -202,7 +202,7 @@ class MissionController():
                 else:
                     continue
 
-    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, fly_speed=0.5, rot_speed=8, center_tolerance=0.1):
+    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, alt_change_dist=3, final_alt_agl=1, fly_speed=0.5, rot_speed=8, center_tolerance=0.1):
         """ Gos to a marker by keeping it in sight, doesn't rely on 3d position """
         if marker1 is not None:
             marker_id = marker1
@@ -237,12 +237,13 @@ class MissionController():
             yaw_rate = np.deg2rad(rot_speed) * (1 if marker_x_pos > 0.5 else -1)
             self._drone.velocity_NEU(0, 0, 0, yaw_rate=yaw_rate)
             
-        self._drone.send_statustext(f"drover: centered")
+        self._drone.send_statustext(f"drover: centered, heading towards")
         
         # head towards marker
         lost_count = 0
         dist = dist_away+1
-        while dist > dist_away:
+        marker_x_pos = 0
+        while dist > dist_away+alt_change_dist:
             # get marker and handle if not seen
             marker = detector.get_seen(marker_id)
             if marker is None:
@@ -254,12 +255,54 @@ class MissionController():
                 time.sleep(1)
                 continue
 
+            # center if drifted
+            marker_x_pos = marker.image_location[0]
+            yaw_rate = np.deg2rad(rot_speed) * (1 if marker_x_pos > 0.5 else -1)
+            yaw_rate = 0 if (0.5-center_tolerance < marker_x_pos < 0.5+center_tolerance) else yaw_rate
+            
             # head towards
             location_2d = np.array([marker.location[2], marker.location[0]])
             dist = np.linalg.norm(location_2d)
             direction_2d = location_2d/dist
             velocity = direction_2d * fly_speed
-            self._drone.velocity_NEU(*velocity, 0, yaw_rate=0, body_offset=True)
+            self._drone.velocity_NEU(*velocity, 0, yaw_rate=yaw_rate, body_offset=True)
+
+        self._drone.send_statustext(f"drover: adjusting alt")
+
+        # adjust altitude
+        self._drone.set_altitude_AGL(1)
+        time.sleep(3)
+
+        self._drone.send_statustext(f"drover: at alt, fine moving")
+
+        # fine head to marker
+        lost_count = 0
+        dist = dist_away+1
+        marker_x_pos = 0
+        while dist > dist_away:
+            # get marker and handle if not seen
+            marker = detector.get_seen(marker_id)
+            if marker is None:
+                self._drone.stop()
+                lost_count += 1
+                if lost_count > max_losses:
+                    log.warning("Lost marker in final slow heading towards. Landing")
+                    self._drone.send_statustext(f"drover: lost in final heading. landing")
+                    break
+                time.sleep(1)
+                continue
+
+            # center if drifted
+            marker_x_pos = marker.image_location[0]
+            yaw_rate = np.deg2rad(rot_speed/2) * (1 if marker_x_pos > 0.5 else -1)
+            yaw_rate = 0 if (0.5-center_tolerance < marker_x_pos < 0.5+center_tolerance) else yaw_rate
+            
+            # head towards
+            location_2d = np.array([marker.location[2], marker.location[0]])
+            dist = np.linalg.norm(location_2d)
+            direction_2d = location_2d/dist
+            velocity = direction_2d * fly_speed
+            self._drone.velocity_NEU(*velocity, 0, yaw_rate=yaw_rate, body_offset=True)
 
         self._drone.stop()
         return True

@@ -334,13 +334,15 @@ class Drone():
         else:
             return lat, lon, altitude
 
-    def get_location(self, use_latlon=False):
+    def get_location(self, use_latlon=False, use_latlon_agl=False):
         """ Get current location in NEU frame (north, east, up) or (lat, lon, MSL) """
         if not use_latlon:
             location_msg = self.mav_conn.recv_match(type='LOCAL_POSITION_NED', blocking=True)
             return np.array([location_msg.x, location_msg.y, -location_msg.z])
 
         location_msg = self.mav_conn.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        if use_latlon_agl:
+            return np.array([location_msg.lat/1e7, location_msg.lon/1e7, location_msg.relative_alt/1e3])            
         return np.array([location_msg.lat/1e7, location_msg.lon/1e7, location_msg.alt/1e3])
     
     def get_velocity_NEU(self):
@@ -497,7 +499,6 @@ class Drone():
 
         log.error(f"Failed to set {parm_name} to {parm_value}")
         return False
-
 
 ##################
 # Motion functions
@@ -723,6 +724,24 @@ class Drone():
             yaw if yaw is not None else 0,  # yaw
             yaw_rate if yaw_rate is not None else 0)  # yaw_rate
 
+    def set_altitude_AGL(self, alt, blocking=True):
+        """ Goes to a set altitude above ground level"""
+        loc = self.get_location(use_latlon=True)        
+        self.goto(loc[0], loc[1], alt, 
+                  use_latlon=True, 
+                  above_terrain=True)
+        
+        if not blocking:
+            return True
+
+        while (self.get_location(use_latlon=True, use_latlon_agl=True)[2] - alt) > self.location_tolerance:
+            time.sleep(0.01)
+        
+        log.debug("Reached target altitude")
+        return True
+            
+        
+        
     def stop(self, blocking=True, accel=None):
         """ Hard stop the drone's movement (accel cm/s/s) """
         if accel is not None:

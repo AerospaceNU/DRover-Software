@@ -333,7 +333,7 @@ class GCSComms():
             wait_ack=True
         )                
         if not ret:
-            log.error(f"No ack from start signal. GLHF")
+            log.error(f"No ack from reboot signal. GLHF")
 
     def wait_heartbeat(self):
         with self._lock:
