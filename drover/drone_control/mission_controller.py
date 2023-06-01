@@ -202,7 +202,7 @@ class MissionController():
                 else:
                     continue
 
-    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, alt_change_dist=2.5, final_alt_agl=1.5, fly_speed=0.5, rot_speed=8, center_tolerance=0.1):
+    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, alt_change_dist=4, final_alt_agl=1.25, fly_speed=0.5, rot_speed=8, center_tolerance=0.1, yolo_lost_advance_dist=0.5):
         """ Gos to a marker by keeping it in sight, doesn't rely on 3d position """
         if marker1 is not None:
             marker_id = marker1
@@ -242,7 +242,7 @@ class MissionController():
         
         # head towards marker
         lost_count = 0
-        dist = dist_away+1
+        dist = dist_away+alt_change_dist+1
         marker_x_pos = 0
         while dist > dist_away+alt_change_dist:
             # get marker and handle if not seen
@@ -289,7 +289,9 @@ class MissionController():
                 lost_count += 1
                 if lost_count > max_losses:
                     log.warning("Lost marker in final slow heading towards. Landing")
-                    self._drone.send_statustext(f"drover: lost in final heading. landing")
+                    self._drone.send_statustext(f"drover: lost in final heading. shimmy")
+                    self._drone.goto(yolo_lost_advance_dist, 0, 0, relative=True, yaw_rate=0)
+                    self._drone.send_statustext(f"drover: shimmied, landing")
                     break
                 time.sleep(1)
                 continue
