@@ -727,7 +727,8 @@ class Drone():
     def set_altitude_AGL(self, alt, blocking=True):
         """ Goes to a set altitude above ground level"""
         loc = self.get_location(use_latlon=True)        
-        self.goto(loc[0], loc[1], alt, 
+        self.goto(loc[0], loc[1], alt,
+                  yaw_rate=0, 
                   use_latlon=True, 
                   above_terrain=True)
         
