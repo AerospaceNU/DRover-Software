@@ -351,7 +351,7 @@ class Drone():
         return np.array([location_msg.vx, location_msg.vy, -location_msg.vz])
 
     def get_attitude(self):
-        """ Get current attitude in euler angles (roll, pitch, yaw) """
+        """ Get current attitude in euler angles radians (roll, pitch, yaw) """
         attitude_msg = self.mav_conn.recv_match(type='ATTITUDE', blocking=True)
         return np.array([attitude_msg.roll, attitude_msg.pitch, attitude_msg.yaw])
 
@@ -739,9 +739,7 @@ class Drone():
         
         log.debug("Reached target altitude")
         return True
-            
-        
-        
+
     def stop(self, blocking=True, accel=None):
         """ Hard stop the drone's movement (accel cm/s/s) """
         if accel is not None:
@@ -886,7 +884,7 @@ class Drone():
             else:
                 angle_traveled += delta_yaw
                 
-            last_angle = angle_traveled
+            last_angle = yaw
             
         self.stop()
         return True
