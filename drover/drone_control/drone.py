@@ -724,19 +724,16 @@ class Drone():
             yaw if yaw is not None else 0,  # yaw
             yaw_rate if yaw_rate is not None else 0)  # yaw_rate
 
-    def set_altitude_AGL(self, alt, blocking=True):
+    def set_altitude_AGL(self, alt, speed=0.1):
         """ Goes to a set altitude above ground level"""
-        loc = self.get_location(use_latlon=True)        
-        self.goto(loc[0], loc[1], alt,
-                  yaw_rate=0, 
-                  use_latlon=True, 
-                  above_terrain=True)
-        
-        if not blocking:
-            return True
-
-        while (self.get_location(use_latlon=True, use_latlon_agl=True)[2] - alt) > self.location_tolerance:
+        err = self.get_location(use_latlon=True, use_latlon_agl=True)[2] - alt
+        while abs(err) > self.location_tolerance:
+            err = self.get_location(use_latlon=True, use_latlon_agl=True)[2] - alt
             time.sleep(0.01)
+            if err > 0:
+                self.velocity_NEU(0, 0, -speed, yaw_rate=0)
+            else:
+                self.velocity_NEU(0, 0, speed, yaw_rate=0)
         
         log.debug("Reached target altitude")
         return True

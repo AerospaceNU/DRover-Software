@@ -202,7 +202,7 @@ class MissionController():
                 else:
                     continue
 
-    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, alt_change_dist=4, final_alt_agl=1.25, fly_speed=0.5, rot_speed=8, center_tolerance=0.1, yolo_lost_advance_dist=0.5):
+    def head_to_marker(self, detector: FiducialDetector, marker1, marker2, dist_away=1, alt_change_dist=3, final_alt_agl=1.5, fly_speed=0.5, rot_speed=8, center_tolerance=0.1, yolo_lost_advance_dist=0.5):
         """ Gos to a marker by keeping it in sight, doesn't rely on 3d position """
         if marker1 is not None:
             marker_id = marker1
